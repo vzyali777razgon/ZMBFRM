@@ -1,0 +1,34 @@
+
+name: Build ZMBFRM VST3 (Windows)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build VST3
+        run: cmake --build build --config Release --target ZMBFRM_VST3 --parallel
+
+      - name: Package VST3
+        shell: pwsh
+        run: |
+          $plugin = Get-ChildItem -Path build -Directory -Filter "ZMBFRM.vst3" -Recurse | Select-Object -First 1
+          if (-not $plugin) { throw "ZMBFRM.vst3 was not found after build." }
+          Compress-Archive -Path $plugin.FullName -DestinationPath "$env:GITHUB_WORKSPACE\ZMBFRM-VST3-Windows.zip" -Force
+
+      - name: Upload VST3 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZMBFRM-VST3-Windows
+          path: ZMBFRM-VST3-Windows.zip
+          if-no-files-found: error
