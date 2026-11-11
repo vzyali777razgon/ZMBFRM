@@ -448,7 +448,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
    const float ratio=juce::jlimit(0.5f,2.0f,pitchRatioBuffer.getReadPointer(0)[i]);
    for(int ch=0;ch<chans;++ch)b.getWritePointer(ch)[i]=pitchShiftSample(ch,dryBuffer.getReadPointer(ch)[i],ratio);
    const float grainDepth=juce::jmin((float)(pitchShiftBuffer.getNumSamples()-128),(float)sampleRateHz*0.040f);
-   const float phaseDelta=juce::jlimit(-0.0012f,0.0012f,(1.0f-ratio)/grainDepth);
+   const float phaseDelta=(1.0f-ratio)/juce::jmax(1.0f,grainDepth);
    pitchPhase += phaseDelta;
    if (pitchPhase >= 1.0f) pitchPhase -= 1.0f;
    if (pitchPhase < 0.0f) pitchPhase += 1.0f;
