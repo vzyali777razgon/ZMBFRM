@@ -20,9 +20,9 @@ ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) 
   addAndMakeVisible(*meter);
  }
  for (int i=0;i<9;++i) { tabs[i].setButtonText(tabNames[i]); tabs[i].setClickingTogglesState(false); tabs[i].setColour(juce::TextButton::buttonColourId, panel2); tabs[i].setColour(juce::TextButton::textColourOffId, muted); tabs[i].setColour(juce::TextButton::textColourOnId, accent); tabs[i].onClick=[this,i]{selectTab(i);}; addAndMakeVisible(tabs[i]); }
- const char* ids[]={"low","mid","high","threshold","ratio","sat","deessAmount","deessFreq","reverb","delay","chorus","mix","out","lowFreq","midFreq","midQ","highFreq","compAttack","compRelease","satMix","reverbDamping","delayFeedback","delayMix","chorusRate","deessThreshold"};
- const char* names[]={"LOW GAIN","MID GAIN","HIGH GAIN","THRESHOLD","RATIO","DRIVE","DE-ESS AMOUNT","DE-ESS FREQ","ROOM","DELAY TIME","CHORUS DEPTH","WET / DRY","OUTPUT","LOW FREQ","MID FREQ","MID Q","HIGH FREQ","ATTACK","RELEASE","SAT MIX","REVERB DAMPING","DELAY FEEDBACK","DELAY MIX","CHORUS RATE","DE-ESS THRESHOLD"};
- for(int i=0;i<25;++i){ sliders[i].setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag); sliders[i].setTextBoxStyle(juce::Slider::TextBoxBelow,false,68,20); sliders[i].setColour(juce::Slider::rotarySliderFillColourId,accent); sliders[i].setColour(juce::Slider::rotarySliderOutlineColourId,line); sliders[i].setColour(juce::Slider::thumbColourId,text); sliders[i].setColour(juce::Slider::textBoxTextColourId,text); sliders[i].setColour(juce::Slider::textBoxBackgroundColourId,panel2); addAndMakeVisible(sliders[i]); sliders[i].setTooltip(juce::String(names[i]) + " — double-click to reset"); labels[i].setText(names[i],juce::dontSendNotification); labels[i].setJustificationType(juce::Justification::centred); labels[i].setColour(juce::Label::textColourId,muted); addAndMakeVisible(labels[i]); sliderAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state,ids[i],sliders[i]); }
+ const char* ids[]={"low","mid","high","threshold","ratio","sat","deessAmount","deessFreq","reverb","delay","chorus","mix","out","lowFreq","midFreq","midQ","highFreq","compAttack","compRelease","satMix","reverbDamping","delayFeedback","delayMix","chorusRate","deessThreshold","band4Gain","band4Freq","band4Q","band5Gain","band5Freq","band5Q","band6Gain","band6Freq","band6Q","band7Gain","band7Freq","band7Q","band8Gain","band8Freq","band8Q"};
+ const char* names[]={"LOW GAIN","MID GAIN","HIGH GAIN","THRESHOLD","RATIO","DRIVE","DE-ESS AMOUNT","DE-ESS FREQ","ROOM","DELAY TIME","CHORUS DEPTH","WET / DRY","OUTPUT","LOW FREQ","MID FREQ","MID Q","HIGH FREQ","ATTACK","RELEASE","SAT MIX","REVERB DAMPING","DELAY FEEDBACK","DELAY MIX","CHORUS RATE","DE-ESS THRESHOLD","BAND 4 GAIN","BAND 4 FREQ","BAND 4 Q","BAND 5 GAIN","BAND 5 FREQ","BAND 5 Q","BAND 6 GAIN","BAND 6 FREQ","BAND 6 Q","BAND 7 GAIN","BAND 7 FREQ","BAND 7 Q","BAND 8 GAIN","BAND 8 FREQ","BAND 8 Q"};
+ for(int i=0;i<40;++i){ sliders[i].setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag); sliders[i].setTextBoxStyle(juce::Slider::TextBoxBelow,false,68,20); sliders[i].setColour(juce::Slider::rotarySliderFillColourId,accent); sliders[i].setColour(juce::Slider::rotarySliderOutlineColourId,line); sliders[i].setColour(juce::Slider::thumbColourId,text); sliders[i].setColour(juce::Slider::textBoxTextColourId,text); sliders[i].setColour(juce::Slider::textBoxBackgroundColourId,panel2); addAndMakeVisible(sliders[i]); sliders[i].setTooltip(juce::String(names[i]) + " — double-click to reset"); labels[i].setText(names[i],juce::dontSendNotification); labels[i].setJustificationType(juce::Justification::centred); labels[i].setColour(juce::Label::textColourId,muted); addAndMakeVisible(labels[i]); sliderAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state,ids[i],sliders[i]); }
  const char* bids[]={"eqOn","compOn","satOn","deesserOn","reverbOn","delayOn","chorusOn","tuneOn"};
  const char* bnames[]={"EQ ACTIVE","COMP ACTIVE","SATURATION","DE-ESSER ACTIVE","REVERB ACTIVE","DELAY ACTIVE","CHORUS ACTIVE","ZMBTUNE ACTIVE"};
  for(int i=0;i<8;++i){toggles[i].setButtonText(bnames[i]);toggles[i].setTooltip("Enable or bypass this processing module");toggles[i].setColour(juce::ToggleButton::textColourId,text);toggles[i].setColour(juce::ToggleButton::tickColourId,accent);addAndMakeVisible(toggles[i]);buttonAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.state,bids[i],toggles[i]);}
@@ -43,7 +43,10 @@ void ZMBFRMAudioProcessorEditor::updateVisibility(){
  auto ss=[this](int i){sliders[i].setVisible(true);labels[i].setVisible(true);};
  auto tt=[this](int i){toggles[i].setVisible(true);};
  switch(selectedTab){
- case 0: ss(0);ss(1);ss(2);ss(13);ss(14);ss(15);ss(16);tt(0);break;
+ case 0:
+   for(int i : {0,1,2,13,14,15,16}) ss(i);
+   for(int i=25;i<40;++i) ss(i);
+   tt(0);break;
  case 1: tt(7); break;
  case 2: ss(3);ss(4);ss(17);ss(18);tt(1);break;
  case 3: ss(5);ss(19);tt(2);break;
@@ -127,7 +130,7 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
   g.setColour(text);g.setFont(juce::Font(juce::FontOptions(17.0f,juce::Font::bold)));g.drawText(tabNames[selectedTab],36,158,400,28,juce::Justification::left);
   g.setColour(muted);g.setFont(11.0f);g.drawText("Adjust the module controls below. Parameters are automatable and saved with the session.",36,186,getWidth()-72,20,juce::Justification::left);
   if(selectedTab==0){
-   const juce::Rectangle<float> graph(36.0f,218.0f,(float)getWidth()-72.0f,132.0f);
+   const juce::Rectangle<float> graph(36.0f,238.0f,(float)getWidth()-72.0f,122.0f);
    g.setColour(panel2);g.fillRoundedRectangle(graph,10.0f);g.setColour(line);g.drawRoundedRectangle(graph,10.0f,1.0f);
    for(int db=-12;db<=12;db+=6){float y=graph.getCentreY()-db*(graph.getHeight()-18.0f)/26.0f;g.setColour(db==0?juce::Colour(0xff465365):line);g.drawHorizontalLine((int)y,graph.getX()+8,graph.getRight()-8);g.setColour(muted);g.setFont(9.0f);g.drawText(juce::String(db), (int)graph.getX()+7,(int)y-9,26,16,juce::Justification::left);}
    for(int i=0;i<9;++i){float x=graph.getX()+10.0f+i*(graph.getWidth()-20.0f)/8.0f;g.setColour(line);g.drawVerticalLine((int)x,graph.getY()+8,graph.getBottom()-8);}
@@ -184,18 +187,22 @@ void ZMBFRMAudioProcessorEditor::resized()
  const int tabW=(getWidth()-44)/9;for(int i=0;i<9;++i)tabs[i].setBounds(22+i*tabW,91,tabW-4,30);
  if(selectedTab==1){keyBox.setBounds(48,472,100,26);scaleBox.setBounds(158,472,190,26);toggles[7].setBounds(690,472,220,26);const int baseY=514;juce::Slider* ss[]={&speed,&humanize,&detune};for(int i=0;i<3;++i){int x=50+i*150;tuneLabels[i].setBounds(x,baseY,136,18);ss[i]->setBounds(x+6,baseY+14,124,72);}}
  else{
-  const int topY=(selectedTab==0?332:(selectedTab==4?300:230));int visibleIndex=0;
+  const int topY=(selectedTab==0?208:(selectedTab==4?300:230));int visibleIndex=0;
   for(int i=0;i<8;++i)if(toggles[i].isVisible()){toggles[i].setBounds(42+(visibleIndex%4)*220,topY+(visibleIndex/4)*32,210,24);++visibleIndex;}
   if(selectedTab==0){
-   const int ids[]={0,1,2,13,14,15,16};
-   const int gap=8, left=32, usable=getWidth()-64, cell=(usable-gap*6)/7;
-   for(int j=0;j<7;++j){int i=ids[j],x=left+j*(cell+gap);labels[i].setBounds(x,370,cell,22);sliders[i].setBounds(x,392,cell,150);}
+   const int eqIds[]={0,1,2,13,14,15,16,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39};
+   const int left=30, usable=getWidth()-60, cell=usable/11;
+   for(int j=0;j<22;++j){
+    const int i=eqIds[j], row=j/11, col=j%11, x=left+col*cell, y=row==0?374:524;
+    labels[i].setBounds(x,y,cell-3,18);
+    sliders[i].setBounds(x+2,y+18,cell-7,112);
+   }
   } else if(selectedTab==2) {
    const int ids[]={3,4,17,18};const int cell=155;
    for(int j=0;j<4;++j){int i=ids[j],x=50+j*175;labels[i].setBounds(x,360,160,20);sliders[i].setBounds(x+4,380,145,140);}
   } else {
    visibleIndex=0;
-   for(int i=0;i<25;++i)if(sliders[i].isVisible()){
+   for(int i=0;i<40;++i)if(sliders[i].isVisible()){
     const int col=visibleIndex%4, row=visibleIndex/4; ++visibleIndex;
     const int cellW=(getWidth()-100)/4, x=40+col*cellW, y=350+row*150;
     labels[i].setBounds(x,y,cellW-8,20); sliders[i].setBounds(x+4,y+22,cellW-16,124);
@@ -214,7 +221,7 @@ void ZMBFRMAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
   return;
  }
  if(selectedTab==0){
-  const juce::Rectangle<float> graph(36.0f,218.0f,(float)getWidth()-72.0f,132.0f);
+  const juce::Rectangle<float> graph(36.0f,238.0f,(float)getWidth()-72.0f,122.0f);
   if(!graph.contains(e.position)) return;
   const char* freqIDs[]={"lowFreq","midFreq","highFreq","band4Freq","band5Freq","band6Freq","band7Freq","band8Freq"};
   const char* gainIDs[]={"low","mid","high","band4Gain","band5Gain","band6Gain","band7Gain","band8Gain"};
@@ -235,7 +242,7 @@ void ZMBFRMAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 void ZMBFRMAudioProcessorEditor::mouseDrag(const juce::MouseEvent& e)
 {
  if(selectedTab!=0 || selectedEQNode<0) return;
- const juce::Rectangle<float> graph(36.0f,218.0f,(float)getWidth()-72.0f,132.0f);
+ const juce::Rectangle<float> graph(36.0f,238.0f,(float)getWidth()-72.0f,122.0f);
  const float x=juce::jlimit(graph.getX()+10.0f,graph.getRight()-10.0f,e.position.x);
  const float y=juce::jlimit(graph.getY()+12.0f,graph.getBottom()-12.0f,e.position.y);
  const float norm=(x-(graph.getX()+10.0f))/(graph.getWidth()-20.0f);
