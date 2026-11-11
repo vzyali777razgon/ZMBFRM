@@ -123,6 +123,7 @@ void ZMBFRMAudioProcessorEditor::applyFactoryPreset(int index)
 
 void ZMBFRMAudioProcessorEditor::saveUserPreset()
 {
+ if(fileChooser)return;
  auto folder=juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("ZMBFRM");
  folder.createDirectory();
  fileChooser=std::make_unique<juce::FileChooser>("Save ZMBFRM preset",folder,"*.zmbpreset");
@@ -145,6 +146,7 @@ void ZMBFRMAudioProcessorEditor::saveUserPreset()
 
 void ZMBFRMAudioProcessorEditor::loadUserPreset()
 {
+ if(fileChooser)return;
  auto folder=juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("ZMBFRM");
  folder.createDirectory();
  fileChooser=std::make_unique<juce::FileChooser>("Load ZMBFRM preset",folder,"*.zmbpreset");
