@@ -78,7 +78,7 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  dryBuffer.setSize(2,juce::jmax(blockSize,65536)); dryBuffer.clear();
  pitchShiftBuffer.setSize(2,(int)(sr*0.065)+blockSize+1); pitchShiftBuffer.clear();
  pitchRatioBuffer.setSize(1,juce::jmax(blockSize,65536)); pitchRatioBuffer.clear(); delayWritePosition=0; pitchWritePosition=0;
- pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchSamplesSinceAnalysis=0; smoothedPitchRatio=1.0f; smoothedDetuneCents=0.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; pitchUnvoicedFrames=0; trackedScaleNote=-1;
+ pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchSamplesSinceAnalysis=0; pitchAnalysisHop=juce::jlimit(256,2048,(int)std::lround(sr*0.010)); smoothedPitchRatio=1.0f; smoothedDetuneCents=0.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; pitchUnvoicedFrames=0; trackedScaleNote=-1;
  detectedMidiNote.store(-1.0f); correctionCents.store(0.0f); inputPeak.store(0.0f); outputPeak.store(0.0f);
 }
 
@@ -308,10 +308,26 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
  const int key=(int)v("key"), scale=(int)v("scale");
  const float speed=v("speed"), human=v("humanize"), detune=v("detune");
  // Update pitch history using the input before any effects.
+ // Prefer a dominant channel if stereo phase cancellation would erase the
+ // vocal fundamental in the mono detector feed.
+ int pitchChannel=-1;
+ if(chans>1 && n>0){
+  double channelEnergy[2]={0.0,0.0}, monoEnergy=0.0;
+  for(int i=0;i<n;++i){
+   const float l=dryBuffer.getReadPointer(0)[i], r=dryBuffer.getReadPointer(1)[i];
+   channelEnergy[0]+=(double)l*l; channelEnergy[1]+=(double)r*r;
+   const float m=0.5f*(l+r); monoEnergy+=(double)m*m;
+  }
+  const double strongest=juce::jmax(channelEnergy[0],channelEnergy[1]);
+  if(strongest>1.0e-12 && monoEnergy<strongest*0.25)
+   pitchChannel=channelEnergy[0]>=channelEnergy[1]?0:1;
+ }
  for(int i=0;i<n;++i){
-  float mono=0.0f;for(int ch=0;ch<chans;++ch)mono+=dryBuffer.getReadPointer(ch)[i];
-  mono/=juce::jmax(1,chans);pitchHistory[pitchHistoryWrite]=mono;pitchHistoryWrite=(pitchHistoryWrite+1)%pitchWindowSize;
-  if(++pitchSamplesSinceAnalysis>=512){
+  float mono=0.0f;
+  if(pitchChannel>=0) mono=dryBuffer.getReadPointer(pitchChannel)[i];
+  else {for(int ch=0;ch<chans;++ch)mono+=dryBuffer.getReadPointer(ch)[i];mono/=juce::jmax(1,chans);}
+  pitchHistory[pitchHistoryWrite]=mono;pitchHistoryWrite=(pitchHistoryWrite+1)%pitchWindowSize;
+  if(++pitchSamplesSinceAnalysis>=pitchAnalysisHop){
    pitchSamplesSinceAnalysis=0;float detected=detectPitchMidi();
    if(detected>=0.0f){
     pitchUnvoicedFrames=0;
@@ -337,7 +353,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
       // Express confirmation in time, not in an arbitrary number of analysis
       // hops, so the tracker behaves consistently at different sample rates.
       const float confirmSeconds=std::abs(std::abs(jump)-12.0f)<2.5f ? 0.045f : 0.032f;
-      const int requiredFrames=juce::jlimit(2,8,(int)std::ceil(confirmSeconds*(float)sampleRateHz/512.0f));
+      const int requiredFrames=juce::jlimit(2,8,(int)std::ceil(confirmSeconds*(float)sampleRateHz/(float)pitchAnalysisHop));
       if(pendingPitchFrames<requiredFrames)
        acceptCandidate=false;
       else {
@@ -380,7 +396,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
     // Humanize. Smooth host automation over 20 ms so changing calibration
     // cannot create a sudden pitch step, even with very fast correction.
     const float detuneTimeSeconds=0.020f;
-    const float detuneAlpha=1.0f-std::exp(-(512.0f/(float)sampleRateHz)/detuneTimeSeconds);
+    const float detuneAlpha=1.0f-std::exp(-((float)pitchAnalysisHop/(float)sampleRateHz)/detuneTimeSeconds);
     smoothedDetuneCents += juce::jlimit(0.001f,0.95f,detuneAlpha)*(juce::jlimit(-100.0f,100.0f,detune)-smoothedDetuneCents);
     const float cents=((float)nearest-candidate)*100.0f+smoothedDetuneCents;
     correctionCents.store(cents);
@@ -403,7 +419,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
     // Brief unvoiced gaps are common between voiced frames and consonants.
     // Preserve the pending transition through short gaps; only clear it and
     // relax toward unity after roughly 50 ms without a usable pitch estimate.
-    const int unvoicedGraceFrames=juce::jmax(2,(int)std::ceil(0.050f*(float)sampleRateHz/512.0f));
+    const int unvoicedGraceFrames=juce::jmax(2,(int)std::ceil(0.050f*(float)sampleRateHz/(float)pitchAnalysisHop));
     if(pitchUnvoicedFrames>unvoicedGraceFrames){
      pendingPitchMidi=-1.0f;
      pendingPitchFrames=0;
