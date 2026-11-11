@@ -170,7 +170,7 @@ void ZMBFRMAudioProcessorEditor::loadUserPreset()
   });
 }
 
-void ZMBFRMAudioProcessorEditor::selectTab(int index){selectedTab=juce::jlimit(0,8,index);for(int i=0;i<9;++i){tabs[i].setToggleState(i==selectedTab,juce::dontSendNotification);tabs[i].setColour(juce::TextButton::buttonColourId,i==selectedTab?juce::Colour(0xff421923):panel2);tabs[i].setColour(juce::TextButton::textColourOffId,i==selectedTab?accent:muted);}updateVisibility();repaint();}
+void ZMBFRMAudioProcessorEditor::selectTab(int index){selectedEQNode=-1;selectedTab=juce::jlimit(0,8,index);for(int i=0;i<9;++i){tabs[i].setToggleState(i==selectedTab,juce::dontSendNotification);tabs[i].setColour(juce::TextButton::buttonColourId,i==selectedTab?juce::Colour(0xff421923):panel2);tabs[i].setColour(juce::TextButton::textColourOffId,i==selectedTab?accent:muted);}updateVisibility();repaint();}
 void ZMBFRMAudioProcessorEditor::updateVisibility(){
  const bool tune=selectedTab==1;
  for(auto& s:sliders)s.setVisible(false); for(auto& l:labels)l.setVisible(false); for(auto& t:toggles)t.setVisible(false);
@@ -392,13 +392,14 @@ void ZMBFRMAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 {
  if(selectedTab==1){
   const float ky=(float)getHeight()-124.0f;
-  if(e.y>=ky && e.y<=ky+82.0f){
+  if(e.y>=ky && e.y<=ky+82.0f && e.x>=36.0f && e.x<=getWidth()-36.0f){
    const int index=juce::jlimit(0,23,(int)((e.x-36.0f)/((float(getWidth())-72.0f)/24.0f)));
    keyBox.setSelectedItemIndex(index%12,juce::sendNotification);
   }
   return;
  }
  if(selectedTab==0){
+  selectedEQNode=-1;
   const juce::Rectangle<float> graph(36.0f,238.0f,(float)getWidth()-72.0f,122.0f);
   if(!graph.contains(e.position)) return;
   const char* freqIDs[]={"lowFreq","midFreq","highFreq","band4Freq","band5Freq","band6Freq","band7Freq","band8Freq"};
@@ -433,4 +434,10 @@ void ZMBFRMAudioProcessorEditor::mouseDrag(const juce::MouseEvent& e)
  if(gp){gp->beginChangeGesture();gp->setValueNotifyingHost(gp->convertTo0to1(gain));gp->endChangeGesture();}
  if(fp){fp->beginChangeGesture();fp->setValueNotifyingHost(fp->convertTo0to1(hz));fp->endChangeGesture();}
  repaint();
+}
+void ZMBFRMAudioProcessorEditor::mouseUp(const juce::MouseEvent& e)
+{
+ juce::ignoreUnused(e);
+ selectedEQNode=-1;
+ setMouseCursor(juce::MouseCursor::NormalCursor);
 }
