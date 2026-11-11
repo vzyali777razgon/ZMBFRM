@@ -172,6 +172,13 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
   // Subtle grid and pitch guide lines.
   for(int i=0;i<9;++i){float y=area.getY()+38.0f+i*(area.getHeight()-54.0f)/8.0f;g.setColour(i==4?juce::Colour(0xff344b58):line);g.drawHorizontalLine((int)y,area.getX()+14,area.getRight()-14);}
   for(int i=0;i<13;++i){float x=area.getX()+14.0f+i*(area.getWidth()-28.0f)/12.0f;g.setColour(line);g.drawVerticalLine((int)x,area.getY()+30,area.getBottom()-14);}
+  const int pitchGuideNotes[]={48,60,72,84};
+  const char* pitchGuideNames[]={"C3","C4","C5","C6"};
+  for(int i=0;i<4;++i){
+   const float y=area.getY()+38.0f+(area.getHeight()-70.0f)
+      -(float)(pitchGuideNotes[i]-33)*(area.getHeight()-70.0f)/51.0f;
+   g.setColour(muted);g.setFont(9.0f);g.drawText(pitchGuideNames[i],(int)area.getX()+4,(int)y-7,24,14,juce::Justification::left);
+  }
   g.setColour(accent);g.setFont(juce::Font(juce::FontOptions(12.0f,juce::Font::bold)));g.drawText("ZMBTUNE",area.getX()+20,area.getY()+35,110,20,juce::Justification::left);
   // Draw the actual recent pitch history, leaving gaps where the input is unvoiced.
   juce::Path pitchPath;bool traceStarted=false;
@@ -183,7 +190,7 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
    const float pitch=processor.getPitchTracePoint(i);
    if(pitch<0.0f){traceStarted=false;continue;}
    const float x=traceLeft+(traceCount>1?(float)i/(float)(traceCount-1):1.0f)*traceWidth;
-   const float y=traceTop+traceHeight-(juce::jlimit(48.0f,84.0f,pitch)-48.0f)*(traceHeight/36.0f);
+   const float y=traceTop+traceHeight-(juce::jlimit(33.0f,84.0f,pitch)-33.0f)*(traceHeight/51.0f);
    if(!traceStarted){pitchPath.startNewSubPath(x,y);traceStarted=true;}else pitchPath.lineTo(x,y);
    lastTraceX=x;lastTraceY=y;
   }
