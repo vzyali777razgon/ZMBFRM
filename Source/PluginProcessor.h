@@ -23,7 +23,20 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 30.0; }
+    double getTailLengthSeconds() const override
+    {
+        double tail = (state.getRawParameterValue("reverbOn")->load() > 0.5f
+                       && state.getRawParameterValue("reverb")->load() > 0.001f) ? 3.0 : 0.0;
+        if (state.getRawParameterValue("delayOn")->load() > 0.5f
+            && state.getRawParameterValue("delayMix")->load() > 0.001f)
+        {
+            const double delaySeconds = 0.08 + 0.55 * state.getRawParameterValue("delay")->load();
+            const double feedback = juce::jlimit(0.0, 0.85, (double)state.getRawParameterValue("delayFeedback")->load());
+            const double repeats = feedback > 0.001 ? std::ceil(std::log(0.001) / std::log(feedback)) : 1.0;
+            tail += delaySeconds * repeats;
+        }
+        return tail;
+    }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram(int) override {}
