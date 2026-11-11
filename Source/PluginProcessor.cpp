@@ -59,6 +59,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout ZMBFRMAudioProcessor::create
 
 void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
 {
+ // Hosts should provide valid values, but guard the DSP setup against
+ // malformed/offline configurations before calculating buffer sizes.
+ if (!std::isfinite(sr) || sr < 8000.0)
+  sr = 44100.0;
+ blockSize = juce::jmax(1, blockSize);
  sampleRateHz=sr;
  masterMixSmoother.reset(sr, 0.02);
  outputGainSmoother.reset(sr, 0.02);
@@ -280,7 +285,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
  // A prepared scratch buffer avoids allocating memory in the real-time audio callback.
  // JUCE hosts normally respect the prepared block size; the oversized reserve covers common
  // offline/render blocks without resizing in processBlock.
- if (n > dryBuffer.getNumSamples())
+ if (n > dryBuffer.getNumSamples() || n > pitchRatioBuffer.getNumSamples())
  {
   // Never resize a scratch buffer on the audio thread. For unusually large offline blocks,
   // safely pass audio through rather than risk an out-of-bounds read.
@@ -290,6 +295,14 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
  for (int ch=0; ch<chans; ++ch)
  {
   dryBuffer.copyFrom(ch, 0, b.getReadPointer(ch), n);
+  auto* cleanInput = dryBuffer.getWritePointer(ch);
+  for (int i=0; i<n; ++i)
+  {
+   // Prevent a single invalid host/input sample from poisoning pitch history,
+   // delay lines, filter states, and the complete output block.
+   if (!std::isfinite(cleanInput[i]))
+    cleanInput[i] = 0.0f;
+  }
   blockInputPeak = juce::jmax(blockInputPeak, dryBuffer.getMagnitude(ch, 0, n));
  }
  inputPeak.store(blockInputPeak);
