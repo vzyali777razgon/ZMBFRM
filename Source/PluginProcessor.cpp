@@ -299,10 +299,11 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
 
       // If shifting by one octave restores continuity, treat it as a
       // detector harmonic error instead of a genuine melodic leap.
-      if(downDistance<4.5f && downDistance+1.0f<std::abs(jump)){
+      const bool octaveSizedJump=std::abs(std::abs(jump)-12.0f)<2.5f;
+      if(octaveSizedJump && downDistance<2.5f){
        candidate=octaveDown;
        trackedPitchMidi+=0.35f*(candidate-trackedPitchMidi);
-      } else if(upDistance<4.5f && upDistance+1.0f<std::abs(jump)){
+      } else if(octaveSizedJump && upDistance<2.5f){
        candidate=octaveUp;
        trackedPitchMidi+=0.35f*(candidate-trackedPitchMidi);
       }
