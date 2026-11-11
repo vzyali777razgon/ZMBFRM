@@ -53,7 +53,7 @@ private:
     float lastLowGain = 999.0f, lastMidGain = 999.0f, lastHighGain = 999.0f;
     float lastLowFreq = -1.0f, lastMidFreq = -1.0f, lastMidQ = -1.0f, lastHighFreq = -1.0f;
 
-    static constexpr int pitchWindowSize = 3072;
+    static constexpr int pitchWindowSize = 8192;
     std::array<float, pitchWindowSize> pitchHistory{};
     int pitchHistoryWrite = 0;
     int pitchSamplesSinceAnalysis = 0;
