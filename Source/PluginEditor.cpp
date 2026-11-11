@@ -11,6 +11,15 @@ ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) 
  title.setText("ZMBFRM", juce::dontSendNotification); title.setFont(juce::Font(juce::FontOptions(28.0f, juce::Font::bold))); title.setColour(juce::Label::textColourId, text); addAndMakeVisible(title);
  subtitle.setText("VERSION 2.0   /   VOCAL PRODUCTION SYSTEM   /   PRECISION PITCH ENGINE", juce::dontSendNotification); subtitle.setFont(juce::Font(juce::FontOptions(10.0f))); subtitle.setColour(juce::Label::textColourId, muted); addAndMakeVisible(subtitle);
  liveNote.setText("WAITING FOR VOICE", juce::dontSendNotification); liveNote.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold))); liveNote.setColour(juce::Label::textColourId, accent); liveNote.setJustificationType(juce::Justification::centredRight); addAndMakeVisible(liveNote);
+ presetBox.addItemList(juce::StringArray{"Init / Neutral","Natural Vocal","Modern Pop","Rap Vocal","Hard Tune","Wide Vocal"},1);
+ presetBox.setSelectedId(1,juce::dontSendNotification);
+ presetBox.setTooltip("Load a factory starting point. Every control remains editable.");
+ presetBox.setColour(juce::ComboBox::backgroundColourId,panel2);
+ presetBox.setColour(juce::ComboBox::textColourId,text);
+ presetBox.setColour(juce::ComboBox::outlineColourId,line);
+ presetBox.setColour(juce::ComboBox::arrowColourId,accent);
+ presetBox.onChange=[this]{const int id=presetBox.getSelectedId();if(id>0)applyFactoryPreset(id-1);};
+ addAndMakeVisible(presetBox);
  inputMeter.setText("IN  -inf dB", juce::dontSendNotification);
  outputMeter.setText("OUT  -inf dB", juce::dontSendNotification);
  for (auto* meter : { &inputMeter, &outputMeter }) {
@@ -33,6 +42,69 @@ ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) 
  juce::Slider* tuneSliders[]={&speed,&humanize,&detune};const char* tuneIds[]={"speed","humanize","detune"};const char* tuneNames[]={"RETUNE SPEED","HUMANIZE","DETUNE / CENTS"};
  for(int i=0;i<3;++i){tuneSliders[i]->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);tuneSliders[i]->setTextBoxStyle(juce::Slider::TextBoxBelow,false,74,20);tuneSliders[i]->setColour(juce::Slider::rotarySliderFillColourId,accent);tuneSliders[i]->setColour(juce::Slider::rotarySliderOutlineColourId,line);tuneSliders[i]->setColour(juce::Slider::thumbColourId,text);tuneSliders[i]->setColour(juce::Slider::textBoxTextColourId,text);tuneSliders[i]->setColour(juce::Slider::textBoxBackgroundColourId,panel2);addAndMakeVisible(*tuneSliders[i]);tuneLabels[i].setText(tuneNames[i],juce::dontSendNotification);tuneLabels[i].setJustificationType(juce::Justification::centred);tuneLabels[i].setColour(juce::Label::textColourId,muted);addAndMakeVisible(tuneLabels[i]);tuneAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state,tuneIds[i],*tuneSliders[i]);}
  selectTab(1); startTimerHz(15);
+}
+
+
+void ZMBFRMAudioProcessorEditor::applyFactoryPreset(int index)
+{
+ auto set=[this](const char* id,float value){
+  if(auto* parameter=processor.state.getParameter(id)){
+   parameter->beginChangeGesture();
+   parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+   parameter->endChangeGesture();
+  }
+ };
+ // Start each preset from a known baseline so no hidden parameter is
+ // accidentally inherited from the previously selected sound.
+ const std::pair<const char*,float> defaults[]={
+  {"eqOn",1},{"low",0},{"mid",0},{"high",0},{"lowFreq",160},{"midFreq",1000},{"midQ",0.8f},{"highFreq",6500},
+  {"band4Gain",0},{"band4Freq",250},{"band4Q",1},{"band5Gain",0},{"band5Freq",500},{"band5Q",1},
+  {"band6Gain",0},{"band6Freq",1000},{"band6Q",1},{"band7Gain",0},{"band7Freq",2000},{"band7Q",1},
+  {"band8Gain",0},{"band8Freq",4000},{"band8Q",1},
+  {"compOn",1},{"threshold",-18},{"ratio",3},{"compAttack",8},{"compRelease",100},
+  {"satOn",1},{"sat",0.15f},{"satMix",1},{"deesserOn",1},{"deessAmount",0.35f},{"deessFreq",6500},{"deessThreshold",0.035f},
+  {"reverbOn",1},{"reverb",0.15f},{"reverbDamping",0.45f},{"delayOn",0},{"delay",0.2f},{"delayFeedback",0.32f},{"delayMix",0.35f},
+  {"chorusOn",0},{"chorus",0.2f},{"chorusRate",0.25f},{"mix",1},{"out",0},
+  {"tuneOn",1},{"key",0},{"scale",2},{"speed",50},{"humanize",20},{"detune",0}
+ };
+ for(const auto& item:defaults) set(item.first,item.second);
+
+ switch(index){
+  case 1: // Natural Vocal
+   set("low",-2);set("mid",0.5f);set("high",1.5f);set("lowFreq",120);set("midFreq",2800);set("midQ",0.9f);set("highFreq",9000);
+   set("threshold",-24);set("ratio",2.5f);set("compAttack",18);set("compRelease",140);
+   set("sat",0.08f);set("satMix",0.25f);set("deessAmount",0.3f);set("reverb",0.08f);
+   set("scale",1);set("speed",30);set("humanize",75);
+   break;
+  case 2: // Modern Pop
+   set("low",-1.5f);set("mid",-1);set("high",2.5f);set("midFreq",3200);set("midQ",1.1f);set("highFreq",8500);
+   set("band6Gain",1);set("band6Freq",2800);set("band7Gain",1);set("band7Freq",5200);set("band8Gain",1.5f);set("band8Freq",11000);
+   set("threshold",-22);set("ratio",3.5f);set("compAttack",8);set("compRelease",100);
+   set("sat",0.18f);set("satMix",0.3f);set("deessAmount",0.45f);set("reverb",0.18f);
+   set("delayOn",1);set("delay",0.22f);set("delayMix",0.14f);set("delayFeedback",0.2f);
+   set("scale",1);set("speed",65);set("humanize",35);
+   break;
+  case 3: // Rap Vocal
+   set("low",-3);set("mid",-2);set("high",2);set("lowFreq",140);set("midFreq",450);set("midQ",1.2f);set("highFreq",7500);
+   set("threshold",-26);set("ratio",4.5f);set("compAttack",4);set("compRelease",85);
+   set("sat",0.28f);set("satMix",0.4f);set("deessAmount",0.32f);set("reverb",0.05f);
+   set("delayOn",1);set("delay",0.16f);set("delayMix",0.2f);set("delayFeedback",0.25f);
+   set("scale",2);set("speed",72);set("humanize",22);
+   break;
+  case 4: // Hard Tune
+   set("tuneOn",1);set("scale",0);set("speed",100);set("humanize",0);set("detune",0);
+   set("reverb",0.08f);set("delayOn",0);set("chorusOn",0);
+   break;
+  case 5: // Wide Vocal
+   set("low",-1);set("high",1.5f);set("threshold",-20);set("ratio",2.8f);
+   set("sat",0.12f);set("satMix",0.2f);set("deessAmount",0.4f);
+   set("reverb",0.24f);set("reverbDamping",0.55f);
+   set("delayOn",1);set("delay",0.28f);set("delayFeedback",0.28f);set("delayMix",0.24f);
+   set("chorusOn",1);set("chorus",0.32f);set("chorusRate",0.22f);
+   set("speed",35);set("humanize",65);
+   break;
+  default: break;
+ }
 }
 
 void ZMBFRMAudioProcessorEditor::selectTab(int index){selectedTab=juce::jlimit(0,8,index);for(int i=0;i<9;++i){tabs[i].setToggleState(i==selectedTab,juce::dontSendNotification);tabs[i].setColour(juce::TextButton::buttonColourId,i==selectedTab?juce::Colour(0xff421923):panel2);tabs[i].setColour(juce::TextButton::textColourOffId,i==selectedTab?accent:muted);}updateVisibility();repaint();}
@@ -208,7 +280,7 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
 
 void ZMBFRMAudioProcessorEditor::resized()
 {
- title.setBounds(24,10,280,38);subtitle.setBounds(26,49,500,20);liveNote.setBounds(getWidth()-470,10,440,24);
+ title.setBounds(24,10,280,38);subtitle.setBounds(26,49,500,20);presetBox.setBounds(340,14,170,26);liveNote.setBounds(540,10,getWidth()-860,24);
  inputMeter.setBounds(getWidth()-300,38,120,20);outputMeter.setBounds(getWidth()-170,38,140,20);
  const int tabW=(getWidth()-44)/9;for(int i=0;i<9;++i)tabs[i].setBounds(22+i*tabW,91,tabW-4,30);
  if(selectedTab==1){keyBox.setBounds(48,472,100,26);scaleBox.setBounds(158,472,190,26);toggles[7].setBounds(690,472,220,26);const int baseY=514;juce::Slider* ss[]={&speed,&humanize,&detune};for(int i=0;i<3;++i){int x=50+i*150;tuneLabels[i].setBounds(x,baseY,136,18);ss[i]->setBounds(x+6,baseY+14,124,72);}}
