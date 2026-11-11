@@ -312,12 +312,15 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
     detectedMidiNote.store(candidate);
     const int nearest=getScaleNote((int)std::lround(candidate),key,scale);
     const float cents=((float)nearest-candidate)*100.0f+detune;
-    // Humanize reduces correction depth; speed controls how quickly the
-    // smoothed ratio approaches the target without discontinuous jumps.
-    const float correction=cents*(1.0f-human*0.0025f);
+    // Humanize is time-domain behaviour: retain the full musical target,
+    // but ease into it more gently so note transitions and vibrato feel less
+    // mechanically snapped. Speed remains the primary retune-time control.
+    const float correction=cents;
     correctionCents.store(correction);
     const float target=std::pow(2.0f,correction/1200.0f);
-    const float smoothing=juce::jlimit(0.02f,0.95f,0.02f+speed*0.0092f);
+    const float speedResponse=juce::jlimit(0.02f,0.95f,0.02f+speed*0.0092f);
+    const float humanizeScale=1.0f-0.85f*(human/100.0f);
+    const float smoothing=juce::jlimit(0.003f,0.95f,speedResponse*humanizeScale);
     smoothedPitchRatio+=smoothing*(target-smoothedPitchRatio);
    } else {
     detectedMidiNote.store(-1.0f);
