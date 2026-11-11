@@ -71,7 +71,7 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  reverb.prepare(spec); reverb.reset();
  delayBuffer.setSize(2,(int)(sr*2.0)+blockSize+1); delayBuffer.clear();
  dryBuffer.setSize(2,juce::jmax(blockSize,65536)); dryBuffer.clear();
- pitchShiftBuffer.setSize(2,8192); pitchShiftBuffer.clear(); delayWritePosition=0; pitchWritePosition=0;
+ pitchShiftBuffer.setSize(2,(int)(sr*0.065)+blockSize+1); pitchShiftBuffer.clear(); delayWritePosition=0; pitchWritePosition=0;
  pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchSamplesSinceAnalysis=0; smoothedPitchRatio=1.0f; pitchPhase=0.0f;
  detectedMidiNote.store(-1.0f); correctionCents.store(0.0f); inputPeak.store(0.0f); outputPeak.store(0.0f);
 }
@@ -233,11 +233,11 @@ float ZMBFRMAudioProcessor::pitchShiftSample(int channel,float input,float ratio
  const int cap=pitchShiftBuffer.getNumSamples();
  auto* ring=pitchShiftBuffer.getWritePointer(channel);
  ring[pitchWritePosition]=input;
- const float depth=900.0f;
+ const float depth=juce::jmin((float)(cap - 128), (float)sampleRateHz * 0.035f);
  const float phaseA=pitchPhase;
  const float phaseB=std::fmod(pitchPhase+0.5f,1.0f);
  auto readTap=[&](float phase){
-  const float delay=80.0f+phase*depth;
+  const float delay=64.0f+phase*depth;
   float pos=(float)pitchWritePosition-delay;
   while(pos<0.0f)pos+=(float)cap;
   const int i0=(int)pos%cap;const int i1=(i0+1)%cap;const float frac=pos-std::floor(pos);
@@ -305,7 +305,8 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   for(int i=0;i<n;++i){
    const float ratio=juce::jlimit(0.5f,2.0f,smoothedPitchRatio);
    for(int ch=0;ch<chans;++ch)b.getWritePointer(ch)[i]=pitchShiftSample(ch,dryBuffer.getReadPointer(ch)[i],ratio);
-   const float phaseDelta=juce::jlimit(-0.0012f,0.0012f,(1.0f-ratio)/900.0f);
+   const float grainDepth=juce::jmin((float)(pitchShiftBuffer.getNumSamples() - 128), (float)sampleRateHz * 0.035f);
+   const float phaseDelta=juce::jlimit(-0.0012f,0.0012f,(1.0f-ratio)/grainDepth);
    pitchPhase += phaseDelta;
    if (pitchPhase >= 1.0f) pitchPhase -= 1.0f;
    if (pitchPhase < 0.0f) pitchPhase += 1.0f;
