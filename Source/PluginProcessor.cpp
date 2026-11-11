@@ -231,26 +231,46 @@ int ZMBFRMAudioProcessor::getScaleNote(int midiNote,int key,int scale) const noe
 
 float ZMBFRMAudioProcessor::pitchShiftSample(int channel,float input,float ratio) noexcept
 {
- // Dual overlapping delay taps create a lightweight real-time pitch shifter. This is an MVP;
- // transients can sound grainy compared with a dedicated phase-vocoder/PSOLA engine.
+ // Two continuously overlapping delay heads. A Hann crossfade avoids the
+ // level ripple of a triangular fade, while cubic interpolation reduces
+ // high-frequency aliasing and the grainy edge of linear delay reads.
  const int cap=pitchShiftBuffer.getNumSamples();
  auto* ring=pitchShiftBuffer.getWritePointer(channel);
  ring[pitchWritePosition]=input;
- const float depth=juce::jmin((float)(cap - 128), (float)sampleRateHz * 0.035f);
+ const float depth=juce::jmin((float)(cap-128),(float)sampleRateHz*0.040f);
  const float phaseA=pitchPhase;
- const float phaseB=std::fmod(pitchPhase+0.5f,1.0f);
- auto readTap=[&](float phase){
+ const float phaseB=phaseA<0.5f ? phaseA+0.5f : phaseA-0.5f;
+
+ auto readTap=[&](float phase) noexcept
+ {
   const float delay=64.0f+phase*depth;
   float pos=(float)pitchWritePosition-delay;
-  while(pos<0.0f)pos+=(float)cap;
-  const int i0=(int)pos%cap;const int i1=(i0+1)%cap;const float frac=pos-std::floor(pos);
-  return ring[i0]+(ring[i1]-ring[i0])*frac;
+  while(pos<0.0f) pos+=(float)cap;
+  while(pos>=(float)cap) pos-=(float)cap;
+
+  const int i1=(int)pos;
+  const int i0=(i1+cap-1)%cap;
+  const int i2=(i1+1)%cap;
+  const int i3=(i1+2)%cap;
+  const float t=pos-(float)i1;
+  const float y0=ring[i0], y1=ring[i1], y2=ring[i2], y3=ring[i3];
+
+  // Catmull-Rom cubic interpolation; bounded to avoid overshoot on sharp
+  // vocal transients while retaining a smoother slope than linear reads.
+  const float a0=-0.5f*y0+1.5f*y1-1.5f*y2+0.5f*y3;
+  const float a1=y0-2.5f*y1+2.0f*y2-0.5f*y3;
+  const float a2=-0.5f*y0+0.5f*y2;
+  const float cubic=((a0*t+a1)*t+a2)*t+y1;
+  const float linear=y1+(y2-y1)*t;
+  return juce::jlimit(juce::jmin(y1,y2),juce::jmax(y1,y2),cubic*0.85f+linear*0.15f);
  };
- const float a=readTap(phaseA), b=readTap(phaseB);
- const float wa=1.0f-std::abs(2.0f*phaseA-1.0f), wb=1.0f-wa;
- const float out=a*wa+b*wb;
+
+ const float a=readTap(phaseA);
+ const float b=readTap(phaseB);
+ const float wa=0.5f-0.5f*std::cos(juce::MathConstants<float>::twoPi*phaseA);
+ const float wb=1.0f-wa;
  juce::ignoreUnused(ratio); // Phase increment is applied once per sample in processBlock().
- return out;
+ return a*wa+b*wb;
 }
 
 void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBuffer&)
@@ -390,7 +410,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   for(int i=0;i<n;++i){
    const float ratio=juce::jlimit(0.5f,2.0f,pitchRatioBuffer.getReadPointer(0)[i]);
    for(int ch=0;ch<chans;++ch)b.getWritePointer(ch)[i]=pitchShiftSample(ch,dryBuffer.getReadPointer(ch)[i],ratio);
-   const float grainDepth=juce::jmin((float)(pitchShiftBuffer.getNumSamples() - 128), (float)sampleRateHz * 0.035f);
+   const float grainDepth=juce::jmin((float)(pitchShiftBuffer.getNumSamples()-128),(float)sampleRateHz*0.040f);
    const float phaseDelta=juce::jlimit(-0.0012f,0.0012f,(1.0f-ratio)/grainDepth);
    pitchPhase += phaseDelta;
    if (pitchPhase >= 1.0f) pitchPhase -= 1.0f;
