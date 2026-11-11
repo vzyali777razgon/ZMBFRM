@@ -1,5 +1,9 @@
 name: Build ZMBFRM VST3 (Windows)
 
+concurrency:
+  group: zmbfrm-vst3-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   push:
