@@ -90,7 +90,23 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
   for(int i=0;i<9;++i){float y=area.getY()+38.0f+i*(area.getHeight()-54.0f)/8.0f;g.setColour(i==4?juce::Colour(0xff344b58):line);g.drawHorizontalLine((int)y,area.getX()+14,area.getRight()-14);}
   for(int i=0;i<13;++i){float x=area.getX()+14.0f+i*(area.getWidth()-28.0f)/12.0f;g.setColour(line);g.drawVerticalLine((int)x,area.getY()+30,area.getBottom()-14);}
   g.setColour(accent);g.setFont(juce::Font(juce::FontOptions(12.0f,juce::Font::bold)));g.drawText("ZMBTUNE",area.getX()+20,area.getY()+35,110,20,juce::Justification::left);
-  const float note=processor.getDetectedMidiNote();if(note>=0.0f){float y=area.getCentreY()-(note-60.0f)*5.0f;y=juce::jlimit(area.getY()+40.0f,area.getBottom()-20.0f,y);g.setColour(juce::Colour(0x55ff3048));g.fillRoundedRectangle(area.getX()+15,y-10,area.getWidth()-30,20,5);g.setColour(accent);g.fillEllipse(area.getCentreX()-5,y-5,10,10);}
+  // Draw the actual recent pitch history, leaving gaps where the input is unvoiced.
+  juce::Path pitchPath;bool traceStarted=false;
+  const int traceCount=processor.getPitchTraceCount();
+  const float traceLeft=area.getX()+16.0f, traceWidth=area.getWidth()-32.0f;
+  const float traceTop=area.getY()+38.0f, traceHeight=area.getHeight()-70.0f;
+  float lastTraceX=traceLeft,lastTraceY=area.getCentreY();
+  for(int i=0;i<traceCount;++i){
+   const float pitch=processor.getPitchTracePoint(i);
+   if(pitch<0.0f){traceStarted=false;continue;}
+   const float x=traceLeft+(traceCount>1?(float)i/(float)(traceCount-1):1.0f)*traceWidth;
+   const float y=traceTop+traceHeight-(juce::jlimit(48.0f,84.0f,pitch)-48.0f)*(traceHeight/36.0f);
+   if(!traceStarted){pitchPath.startNewSubPath(x,y);traceStarted=true;}else pitchPath.lineTo(x,y);
+   lastTraceX=x;lastTraceY=y;
+  }
+  g.setColour(juce::Colour(0x55ff3048));g.strokePath(pitchPath,juce::PathStrokeType(6.0f));
+  g.setColour(accent);g.strokePath(pitchPath,juce::PathStrokeType(2.0f));
+  if(processor.getDetectedMidiNote()>=0.0f){g.setColour(panel);g.fillEllipse(lastTraceX-6.0f,lastTraceY-6.0f,12.0f,12.0f);g.setColour(accent);g.fillEllipse(lastTraceX-3.5f,lastTraceY-3.5f,7.0f,7.0f);}
   g.setColour(muted);g.setFont(10.0f);g.drawText("LOWER PITCH",(int)area.getX()+16,(int)area.getBottom()-24,100,14,juce::Justification::left);g.drawText("HIGHER PITCH",(int)area.getRight()-116,(int)area.getBottom()-24,100,14,juce::Justification::right);
   g.setColour(panel2);g.fillRoundedRectangle(36,444,(float)getWidth()-72,64,10);g.setColour(muted);g.setFont(10.0f);g.drawText("CORRECTION SETTINGS",50,452,240,14,juce::Justification::left);
   // Piano strip: one label per key; visual reference keyboard for scale selection.
