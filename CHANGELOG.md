@@ -4,7 +4,8 @@
 - Exposed Gain, Frequency, and Q controls for all five parametric EQ bands.
 - Removed per-change EQ coefficient object allocation from the audio callback by updating preallocated coefficient arrays in place.
 - Added sample-by-sample smoothing for delay time, feedback, and wet mix automation.
-- Added a real pitch-history trace to the tuner display and live input/output level bars.
+- Added a real pitch-history trace to the tuner display, live input/output level bars, and a fixed-buffer logarithmic FFT spectrum overlay on the EQ graph.
+- Added mono/stereo bus-layout support and updated reported tail duration for long feedback-delay settings.
 - Added six editable factory vocal starting points: Init / Neutral, Natural Vocal, Modern Pop, Rap Vocal, Hard Tune, and Wide Vocal.
 - Updated project documentation to reflect the current pitch engine, processing modules, state handling, and build limitations.
 
