@@ -73,6 +73,12 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
   sr = 44100.0;
  blockSize = juce::jmax(1, blockSize);
  sampleRateHz=sr;
+ spectrumHistory.fill(0.0f);spectrumFFTData.fill(0.0f);
+ spectrumWritePosition=0;spectrumSamplesWritten=0;spectrumSamplesSinceUpdate=0;
+ spectrumHop=juce::jmax(256,(int)std::lround(sr/30.0));
+ for(int i=0;i<spectrumSize;++i)
+  spectrumWindow[(size_t)i]=0.5f-0.5f*std::cos(juce::MathConstants<float>::twoPi*(float)i/(float)(spectrumSize-1));
+ for(auto& bin:spectrumMagnitudes) bin.store(0.0f,std::memory_order_relaxed);
  // The dual-head shifter has an approximately half-grain fixed centre delay.
  // Report it so the host can compensate against parallel tracks and buses.
  setLatencySamples((int)std::ceil(sr*0.020)+64);
@@ -368,6 +374,32 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   float mono=0.0f;
   if(pitchChannel>=0) mono=dryBuffer.getReadPointer(pitchChannel)[i];
   else {for(int ch=0;ch<chans;++ch)mono+=dryBuffer.getReadPointer(ch)[i];mono/=juce::jmax(1,chans);}
+  spectrumHistory[(size_t)spectrumWritePosition]=mono;
+  spectrumWritePosition=(spectrumWritePosition+1)%spectrumSize;
+  spectrumSamplesWritten=juce::jmin(spectrumSize,spectrumSamplesWritten+1);
+  if(++spectrumSamplesSinceUpdate>=spectrumHop && spectrumSamplesWritten>=spectrumSize){
+   spectrumSamplesSinceUpdate=0;
+   for(int sample=0;sample<spectrumSize;++sample){
+    const int historyIndex=(spectrumWritePosition+sample)%spectrumSize;
+    spectrumFFTData[(size_t)sample]=spectrumHistory[(size_t)historyIndex]*spectrumWindow[(size_t)sample];
+   }
+   std::fill(spectrumFFTData.begin()+spectrumSize,spectrumFFTData.end(),0.0f);
+   spectrumFFT.performFrequencyOnlyForwardTransform(spectrumFFTData.data(),true);
+   const float maxFrequency=juce::jmax(40.0f,juce::jmin(20000.0f,(float)sampleRateHz*0.48f));
+   const float logRange=std::log(maxFrequency/20.0f);
+   for(int band=0;band<spectrumBinCount;++band){
+    const float lowHz=20.0f*std::exp(logRange*(float)band/(float)spectrumBinCount);
+    const float highHz=20.0f*std::exp(logRange*(float)(band+1)/(float)spectrumBinCount);
+    const int firstBin=juce::jlimit(1,spectrumSize/2,(int)std::floor(lowHz*(float)spectrumSize/(float)sampleRateHz));
+    const int lastBin=juce::jlimit(firstBin+1,spectrumSize/2+1,(int)std::ceil(highHz*(float)spectrumSize/(float)sampleRateHz));
+    float magnitude=0.0f;
+    for(int bin=firstBin;bin<lastBin;++bin)
+     magnitude=juce::jmax(magnitude,spectrumFFTData[(size_t)bin]);
+    const float amplitude=magnitude*(4.0f/(float)spectrumSize);
+    const float db=juce::Decibels::gainToDecibels(amplitude,-100.0f);
+    spectrumMagnitudes[(size_t)band].store(juce::jlimit(0.0f,1.0f,(db+72.0f)/72.0f),std::memory_order_relaxed);
+   }
+  }
   pitchHistory[pitchHistoryWrite]=mono;pitchHistoryWrite=(pitchHistoryWrite+1)%pitchWindowSize;
   pitchHistorySamples=juce::jmin(pitchWindowSize,pitchHistorySamples+1);
   if(++pitchSamplesSinceAnalysis>=pitchAnalysisHop){
