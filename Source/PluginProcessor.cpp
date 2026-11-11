@@ -409,7 +409,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
     const float humanNorm=juce::jlimit(0.0f,1.0f,human*0.01f);
     const float responseSeconds=0.008f+0.442f*std::pow(1.0f-speedNorm,2.0f);
     const float humanizedSeconds=responseSeconds*(1.0f+4.0f*humanNorm);
-    const float analysisSeconds=512.0f/(float)sampleRateHz;
+    const float analysisSeconds=(float)pitchAnalysisHop/(float)sampleRateHz;
     const float smoothing=1.0f-std::exp(-analysisSeconds/juce::jmax(0.001f,humanizedSeconds));
     smoothedPitchRatio+=juce::jlimit(0.001f,0.98f,smoothing)*(target-smoothedPitchRatio);
    } else {
@@ -426,7 +426,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
      // Release toward the uncorrected signal with a slower, humanize-aware
      // time constant to avoid a sudden pitch snap at phrase boundaries.
      const float releaseSeconds=0.14f+0.46f*juce::jlimit(0.0f,1.0f,human*0.01f);
-     const float releaseAlpha=1.0f-std::exp(-(512.0f/(float)sampleRateHz)/releaseSeconds);
+     const float releaseAlpha=1.0f-std::exp(-((float)pitchAnalysisHop/(float)sampleRateHz)/releaseSeconds);
      smoothedPitchRatio += juce::jlimit(0.001f,0.25f,releaseAlpha)*(1.0f-smoothedPitchRatio);
     }
    }
