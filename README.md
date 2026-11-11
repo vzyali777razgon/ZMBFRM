@@ -12,9 +12,9 @@ ZMBFRM is a vocal-processing effect built around a real-time pitch-correction en
 - **ZMBComp** — threshold, ratio, attack, and release.
 - **ZMBSaturation** — drive and wet mix.
 - **ZMBDeEsser** — amount, detection frequency, and threshold.
-- **ZMBReverb** — room amount and damping.
+- **ZMBReverb** — room amount, damping, wet mix, and stereo width.
 - **ZMBDelay** — delay time, feedback, and wet mix.
-- **ZMBChorus** — depth and rate.
+- **ZMBChorus** — depth, rate, wet mix, feedback, and centre delay.
 - **ZMBMaster** — global wet/dry and output level.
 
 The processor supports mono and stereo main-bus layouts. The editor includes six editable factory starting points (Init / Neutral, Natural Vocal, Modern Pop, Rap Vocal, Hard Tune, and Wide Vocal), plus save/load support for user presets, live input/output level bars, a live pitch-history trace, a pre-EQ FFT spectrum overlay, and direct EQ-curve editing.
