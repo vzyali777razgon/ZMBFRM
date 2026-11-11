@@ -72,7 +72,7 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  delayBuffer.setSize(2,(int)(sr*2.0)+blockSize+1); delayBuffer.clear();
  dryBuffer.setSize(2,juce::jmax(blockSize,65536)); dryBuffer.clear();
  pitchShiftBuffer.setSize(2,(int)(sr*0.065)+blockSize+1); pitchShiftBuffer.clear(); delayWritePosition=0; pitchWritePosition=0;
- pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchSamplesSinceAnalysis=0; smoothedPitchRatio=1.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; trackedScaleNote=-1;
+ pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchSamplesSinceAnalysis=0; smoothedPitchRatio=1.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; pitchUnvoicedFrames=0; trackedScaleNote=-1;
  detectedMidiNote.store(-1.0f); correctionCents.store(0.0f); inputPeak.store(0.0f); outputPeak.store(0.0f);
 }
 
@@ -283,6 +283,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   if(++pitchSamplesSinceAnalysis>=512){
    pitchSamplesSinceAnalysis=0;float detected=detectPitchMidi();
    if(detected>=0.0f){
+    pitchUnvoicedFrames=0;
     // Accept a stable, octave-corrected pitch estimate before using it for
     // scale quantisation. Large non-octave leaps need repeated evidence;
     // ordinary note motion is smoothed exactly once.
@@ -292,38 +293,25 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
     if(trackedPitchMidi>=0.0f){
      const float jump=candidate-trackedPitchMidi;
      if(std::abs(jump)>7.0f){
-      const float octaveDown=candidate-12.0f;
-      const float octaveUp=candidate+12.0f;
-      const float downDistance=std::abs(octaveDown-trackedPitchMidi);
-      const float upDistance=std::abs(octaveUp-trackedPitchMidi);
-
-      // If shifting by one octave restores continuity, treat it as a
-      // detector harmonic error instead of a genuine melodic leap.
-      const bool octaveSizedJump=std::abs(std::abs(jump)-12.0f)<2.5f;
-      if(octaveSizedJump && downDistance<2.5f){
-       candidate=octaveDown;
-       trackedPitchMidi+=0.35f*(candidate-trackedPitchMidi);
-      } else if(octaveSizedJump && upDistance<2.5f){
-       candidate=octaveUp;
-       trackedPitchMidi+=0.35f*(candidate-trackedPitchMidi);
-      }
+      // Do not automatically fold octave-sized changes back to the old
+      // note: that would suppress genuine octave leaps. Require a stable
+      // repeated observation for every large transition instead.
+      if(pendingPitchMidi>=0.0f && std::abs(candidate-pendingPitchMidi)<1.5f)
+       ++pendingPitchFrames;
       else {
-       if(pendingPitchMidi>=0.0f && std::abs(candidate-pendingPitchMidi)<1.5f)
-        ++pendingPitchFrames;
-       else {
-        pendingPitchMidi=candidate;
-        pendingPitchFrames=1;
-       }
+       pendingPitchMidi=candidate;
+       pendingPitchFrames=1;
+      }
 
-       if(pendingPitchFrames<3)
-        acceptCandidate=false;
-       else {
-        // Three consistent frames confirm a real leap. The pitch-ratio
-        // smoother below performs the audible glide to the new note.
-        trackedPitchMidi=candidate;
-        pendingPitchMidi=-1.0f;
-        pendingPitchFrames=0;
-       }
+      const int requiredFrames=std::abs(std::abs(jump)-12.0f)<2.5f ? 4 : 3;
+      if(pendingPitchFrames<requiredFrames)
+       acceptCandidate=false;
+      else {
+       // Confirmed note change; the pitch-ratio smoother performs the
+       // audible transition instead of abruptly switching the read ratio.
+       trackedPitchMidi=candidate;
+       pendingPitchMidi=-1.0f;
+       pendingPitchFrames=0;
       }
      } else {
       trackedPitchMidi+=0.35f*(candidate-trackedPitchMidi);
@@ -362,12 +350,17 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
     const float smoothing=juce::jlimit(0.003f,0.95f,speedResponse*humanizeScale);
     smoothedPitchRatio+=smoothing*(target-smoothedPitchRatio);
    } else {
+    ++pitchUnvoicedFrames;
     detectedMidiNote.store(-1.0f);
     correctionCents.store(0.0f);
-    pendingPitchMidi=-1.0f; pendingPitchFrames=0;
-    // Keep the last valid note briefly through consonants/breath gaps, then
-    // gently relax the pitch ratio toward unity rather than snapping.
-    smoothedPitchRatio += 0.012f*(1.0f-smoothedPitchRatio);
+    // Brief unvoiced gaps are common between voiced frames and consonants.
+    // Preserve the pending transition through short gaps; only clear it and
+    // relax toward unity after roughly 50 ms without a usable pitch estimate.
+    if(pitchUnvoicedFrames>5){
+     pendingPitchMidi=-1.0f;
+     pendingPitchFrames=0;
+     smoothedPitchRatio += 0.012f*(1.0f-smoothedPitchRatio);
+    }
    }
   }
  }
