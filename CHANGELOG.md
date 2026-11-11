@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.0 — Vocal Suite Completion Pass
+- Exposed Gain, Frequency, and Q controls for all five parametric EQ bands.
+- Removed per-change EQ coefficient object allocation from the audio callback by updating preallocated coefficient arrays in place.
+- Added sample-by-sample smoothing for delay time, feedback, and wet mix automation.
+- Added a real pitch-history trace to the tuner display and live input/output level bars.
+- Added six editable factory vocal starting points: Init / Neutral, Natural Vocal, Modern Pop, Rap Vocal, Hard Tune, and Wide Vocal.
+- Updated project documentation to reflect the current pitch engine, processing modules, state handling, and build limitations.
+
+
 ## 2.0.0 — Visual Identity Refresh
 - Reworked the plugin's visual palette to a high-contrast black and signal-red production interface.
 - Expanded the default editor canvas and minimum size for a more spacious workstation layout.
