@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0 — Visual Identity Refresh
+- Reworked the plugin's visual palette to a high-contrast black and signal-red production interface.
+- Expanded the default editor canvas and minimum size for a more spacious workstation layout.
+- Updated the interface branding and pitch-engine header for the 2.0 development line.
+
+
 ## 1.5.0 — Tune Engine Refinement
 - Improved pitch detection precision using parabolic lag interpolation.
 - Added a silence/low-level guard and raised confidence threshold to reduce false pitch estimates.
