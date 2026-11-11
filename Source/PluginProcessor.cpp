@@ -72,7 +72,7 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  delayBuffer.setSize(2,(int)(sr*2.0)+blockSize+1); delayBuffer.clear();
  dryBuffer.setSize(2,juce::jmax(blockSize,65536)); dryBuffer.clear();
  pitchShiftBuffer.setSize(2,(int)(sr*0.065)+blockSize+1); pitchShiftBuffer.clear(); delayWritePosition=0; pitchWritePosition=0;
- pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchSamplesSinceAnalysis=0; smoothedPitchRatio=1.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0;
+ pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchSamplesSinceAnalysis=0; smoothedPitchRatio=1.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; trackedScaleNote=-1;
  detectedMidiNote.store(-1.0f); correctionCents.store(0.0f); inputPeak.store(0.0f); outputPeak.store(0.0f);
 }
 
@@ -310,7 +310,15 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
     if(pendingPitchFrames==0 && candidate!=trackedPitchMidi)
      trackedPitchMidi=0.75f*trackedPitchMidi+0.25f*candidate;
     detectedMidiNote.store(candidate);
-    const int nearest=getScaleNote((int)std::lround(candidate),key,scale);
+    int nearest=getScaleNote((int)std::lround(candidate),key,scale);
+    // Add a small pitch-boundary hysteresis so vibrato near a scale-note
+    // midpoint does not make the target alternate between two notes.
+    if(trackedScaleNote>=0 && getScaleNote(trackedScaleNote,key,scale)==trackedScaleNote){
+     if(nearest!=trackedScaleNote
+        && std::abs(candidate-(float)nearest)+0.12f>=std::abs(candidate-(float)trackedScaleNote))
+      nearest=trackedScaleNote;
+    }
+    trackedScaleNote=nearest;
     const float cents=((float)nearest-candidate)*100.0f+detune;
     // Humanize is time-domain behaviour: retain the full musical target,
     // but ease into it more gently so note transitions and vibrato feel less
