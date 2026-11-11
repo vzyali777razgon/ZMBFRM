@@ -4,7 +4,15 @@
 ZMBFRMAudioProcessor::ZMBFRMAudioProcessor()
  : AudioProcessor(BusesProperties().withInput("Input",juce::AudioChannelSet::stereo(),true)
                                   .withOutput("Output",juce::AudioChannelSet::stereo(),true)),
-   state(*this,nullptr,"ZMBFRM_STATE",createParameterLayout()) {}
+   state(*this,nullptr,"ZMBFRM_STATE",createParameterLayout())
+{
+ for(int band=0;band<5;++band){
+  const auto suffix=juce::String(band+4);
+  extraBandGainParams[(size_t)band]=state.getRawParameterValue(("band"+suffix+"Gain").toRawUTF8());
+  extraBandFreqParams[(size_t)band]=state.getRawParameterValue(("band"+suffix+"Freq").toRawUTF8());
+  extraBandQParams[(size_t)band]=state.getRawParameterValue(("band"+suffix+"Q").toRawUTF8());
+ }
+}
 
 juce::AudioProcessorValueTreeState::ParameterLayout ZMBFRMAudioProcessor::createParameterLayout()
 {
@@ -70,6 +78,10 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  setLatencySamples((int)std::ceil(sr*0.020)+64);
  masterMixSmoother.reset(sr, 0.02);
  outputGainSmoother.reset(sr, 0.02);
+ delayTimeSmoother.reset(sr,0.02);delayFeedbackSmoother.reset(sr,0.02);delayMixSmoother.reset(sr,0.02);
+ delayTimeSmoother.setCurrentAndTargetValue(state.getRawParameterValue("delay")->load());
+ delayFeedbackSmoother.setCurrentAndTargetValue(state.getRawParameterValue("delayFeedback")->load());
+ delayMixSmoother.setCurrentAndTargetValue(state.getRawParameterValue("delayMix")->load());
  masterMixSmoother.setCurrentAndTargetValue(state.getRawParameterValue("mix")->load());
  outputGainSmoother.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(state.getRawParameterValue("out")->load()));
  juce::dsp::ProcessSpec spec{sr,(juce::uint32)blockSize,(juce::uint32)getTotalNumOutputChannels()};
@@ -519,9 +531,9 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   for(int ch=0;ch<chans;++ch){auto block=juce::dsp::AudioBlock<float>(b).getSingleChannelBlock((size_t)ch);juce::dsp::ProcessContextReplacing<float> ctx(block);lowFilter[ch].process(ctx);midFilter[ch].process(ctx);highFilter[ch].process(ctx);}
   for(int band=0;band<5;++band){
    const auto suffix=juce::String(band+4);
-   const float gain=v(("band"+suffix+"Gain").toRawUTF8());
-   const float freq=juce::jlimit(20.0f,nyquist,v(("band"+suffix+"Freq").toRawUTF8()));
-   const float q=v(("band"+suffix+"Q").toRawUTF8());
+   const float gain=extraBandGainParams[(size_t)band]->load();
+   const float freq=juce::jlimit(20.0f,nyquist,extraBandFreqParams[(size_t)band]->load());
+   const float q=extraBandQParams[(size_t)band]->load();
    if(gain!=lastExtraGain[band] || freq!=lastExtraFreq[band] || q!=lastExtraQ[band]){
     const auto c=juce::dsp::IIR::ArrayCoefficients<float>::makePeakFilter(sampleRateHz,freq,q,juce::Decibels::decibelsToGain(gain));
     for(int ch=0;ch<2;++ch) *extraEQFilters[band][ch].coefficients=c;
@@ -551,10 +563,11 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
  if(v("reverbOn")>.5f){juce::dsp::Reverb::Parameters rp;rp.roomSize=.2f+v("reverb")*.7f;rp.damping=v("reverbDamping");rp.wetLevel=v("reverb")*.45f;rp.dryLevel=1.0f;rp.width=.9f;reverb.setParameters(rp);juce::dsp::AudioBlock<float> block(b);reverb.process(juce::dsp::ProcessContextReplacing<float>(block));}
  if(v("delayOn")>.5f){
   const int cap=delayBuffer.getNumSamples();
-  const int dly=juce::jlimit(1,cap-1,(int)(sampleRateHz*(.08+v("delay")*.55)));
-  const float feedback=juce::jlimit(0.0f,0.85f,v("delayFeedback"));
-  const float delayMix=juce::jlimit(0.0f,1.0f,v("delayMix"));
+  delayTimeSmoother.setTargetValue(v("delay")); delayFeedbackSmoother.setTargetValue(v("delayFeedback")); delayMixSmoother.setTargetValue(v("delayMix"));
+  const float feedback=juce::jlimit(0.0f,0.85f,delayFeedbackSmoother.getNextValue());
+  const float delayMix=juce::jlimit(0.0f,1.0f,delayMixSmoother.getNextValue());
   for(int i=0;i<n;++i){
+   const int dly=juce::jlimit(1,cap-1,(int)(sampleRateHz*(.08+delayTimeSmoother.getNextValue()*.55)));
    const int rp=(delayWritePosition-dly+cap)%cap;
    for(int ch=0;ch<chans;++ch){auto*x=b.getWritePointer(ch);auto*d=delayBuffer.getWritePointer(ch);const float z=d[rp];d[delayWritePosition]=x[i]+z*feedback;x[i]+=z*delayMix;}
    delayWritePosition=(delayWritePosition+1)%cap;
