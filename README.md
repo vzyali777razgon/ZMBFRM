@@ -1,41 +1,46 @@
 # ZMBFRM 2.0 — Vocal Production Suite
 
-Development branch: `zmbfrm-2.0-dev`
+Development branch: `zmbfrm-2.0-dev`  
+Target: Windows x64 · VST3 · JUCE 8 · FL Studio-compatible workflow
 
-Target platform: Windows x64 / VST3 / FL Studio.
+ZMBFRM is a vocal-processing effect built around a real-time pitch-correction engine and a set of mix-processing modules. The 2.0 development line is focused on completing the DSP, exposing every control clearly, and validating the plug-in build.
 
-## 2.0 goals
+## Processing modules
 
-- Preserve the existing vocal-processing modules and parameter IDs wherever practical.
-- Replace the current pitch shifter with a proper, tested monophonic vocal pitch-correction design.
-- Redesign the editor around a wide, futuristic black-and-red visual system.
-- Make the EQ display, pitch display and meters reflect real signal data.
-- Keep the audio callback real-time safe: no heap allocation, locks, file access or UI work in `processBlock`.
-- Validate the plugin with automated builds and then in FL Studio.
+- **ZMBTune** — monophonic vocal pitch correction with key and scale selection, retune speed, Humanize, and ±100-cent Detune.
+- **ZMBEQ** — eight bands: low shelf, mid bell, high shelf, and five fully parametric bell bands. The EQ response graph supports direct frequency/gain editing.
+- **ZMBComp** — threshold, ratio, attack, and release.
+- **ZMBSaturation** — drive and wet mix.
+- **ZMBDeEsser** — amount, detection frequency, and threshold.
+- **ZMBReverb** — room amount and damping.
+- **ZMBDelay** — delay time, feedback, and wet mix.
+- **ZMBChorus** — depth and rate.
+- **ZMBMaster** — global wet/dry and output level.
 
-## Existing modules
+All exposed AudioProcessorValueTreeState parameters are host-automatable and saved/restored with the plug-in state. Existing parameter IDs are retained to protect sessions and automation.
 
-- 8-band EQ (three main bands plus five parametric bands)
-- Compressor
-- Saturation
-- De-esser
-- Reverb
-- Delay
-- Chorus
-- Pitch correction with key and scale selection
+## Pitch engine
 
-## Current technical findings
+The pitch detector uses a YIN/CMND-style periodicity analysis with DC removal, confidence checks, parabolic refinement, sample-rate-scaled analysis windows, and a fixed-size history buffer. Tracking confirms large pitch transitions over multiple observations, preserves short unvoiced gaps, and applies scale-note hysteresis.
 
-The current pitch estimator uses normalized autocorrelation with parabolic lag refinement. Its pitch shifter is a dual-tap delay design and is explicitly an MVP, not a transparent vocal tuner. The `delta` local in `pitchShiftSample` is calculated but unused; pitch movement is instead controlled by the shared delay-tap phase in `processBlock`. This architecture is a major candidate for replacement.
+The shifter uses two overlapping delay taps, Hann crossfading, cubic interpolation, a startup warmup, and host-reported latency. Speed controls correction response; Humanize extends the response and release times without reducing the selected scale correction depth.
 
-The current editor uses nine tabs and a cyan accent palette. The EQ graph draws the calculated response curve, not a live FFT spectrum. The tuner display reports a detected note but does not yet provide a true time-history pitch trace.
+The detector and shifter have been compiled in the automated VST3 workflow. Synthetic pitch-detector simulations are useful algorithm checks, but they are not a substitute for recording real vocals and listening in a DAW.
 
-## Development safety
+## Real-time and state handling
 
-The original `main` branch is kept unchanged. All 2.0 work is isolated on `zmbfrm-2.0-dev`. Existing parameter IDs should remain stable unless a migration is implemented.
+- Pitch history and processing scratch buffers are prepared before audio processing.
+- Input and output samples are checked for non-finite values.
+- EQ coefficient storage is allocated during preparation; parameter changes update fixed-size coefficient arrays in place.
+- Plug-in state is serialized through the JUCE ValueTree state.
+- The editor reads signal meters and pitch information through atomic processor telemetry.
 
 ## Build
 
-GitHub Actions builds the Windows x64 VST3 and uploads a ZIP artifact. The workflow can be started manually or runs on pushes to the development branch.
+GitHub Actions configures JUCE 8.0.6, builds the Windows x64 VST3 Release target, packages the `.vst3` bundle, and uploads a ZIP artifact.
 
-A successful CI build confirms compilation and packaging only; final sound quality and host compatibility still require listening and testing in FL Studio.
+A successful CI run verifies compilation and packaging only. It does **not** prove sound quality, CPU performance, or compatibility with every host configuration. Final acceptance still requires listening tests in FL Studio across sample rates, buffer sizes, mono/stereo routing, and automation scenarios.
+
+## Development policy
+
+All 2.0 work is isolated on `zmbfrm-2.0-dev`. The original `main` branch remains untouched. Avoid changing existing parameter IDs unless a migration path is implemented.
