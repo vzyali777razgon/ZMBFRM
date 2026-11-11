@@ -349,10 +349,17 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
     const float cents=((float)nearest-candidate)*100.0f+detune;
     correctionCents.store(cents);
     const float target=std::pow(2.0f,cents/1200.0f);
-    const float speedResponse=juce::jlimit(0.02f,0.95f,0.02f+speed*0.0092f);
-    const float humanizeScale=1.0f-0.85f*(human/100.0f);
-    const float smoothing=juce::jlimit(0.003f,0.95f,speedResponse*humanizeScale);
-    smoothedPitchRatio+=smoothing*(target-smoothedPitchRatio);
+
+    // Speed is mapped to a real-time response constant rather than a raw
+    // per-analysis coefficient. This keeps the musical feel consistent
+    // across sample rates and the fixed 512-sample analysis cadence.
+    const float speedNorm=juce::jlimit(0.0f,1.0f,speed/100.0f);
+    const float humanNorm=juce::jlimit(0.0f,1.0f,human/100.0f);
+    const float responseSeconds=0.008f+0.442f*std::pow(1.0f-speedNorm,2.0f);
+    const float humanizedSeconds=responseSeconds*(1.0f+4.0f*humanNorm);
+    const float analysisSeconds=512.0f/(float)sampleRateHz;
+    const float smoothing=1.0f-std::exp(-analysisSeconds/juce::jmax(0.001f,humanizedSeconds));
+    smoothedPitchRatio+=juce::jlimit(0.001f,0.98f,smoothing)*(target-smoothedPitchRatio);
    } else {
     ++pitchUnvoicedFrames;
     detectedMidiNote.store(-1.0f);
@@ -364,7 +371,11 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
     if(pitchUnvoicedFrames>unvoicedGraceFrames){
      pendingPitchMidi=-1.0f;
      pendingPitchFrames=0;
-     smoothedPitchRatio += 0.012f*(1.0f-smoothedPitchRatio);
+     // Release toward the uncorrected signal with a slower, humanize-aware
+     // time constant to avoid a sudden pitch snap at phrase boundaries.
+     const float releaseSeconds=0.14f+0.46f*(human/100.0f);
+     const float releaseAlpha=1.0f-std::exp(-(512.0f/(float)sampleRateHz)/releaseSeconds);
+     smoothedPitchRatio += juce::jlimit(0.001f,0.25f,releaseAlpha)*(1.0f-smoothedPitchRatio);
     }
    }
   }
