@@ -1,15 +1,15 @@
 #include "PluginEditor.h"
 
 namespace {
-const juce::Colour bg(0xff0b0d12), panel(0xff131722), panel2(0xff191f2c), line(0xff293244), text(0xffedf2fb), muted(0xff8793a8), accent(0xff7ce7d4);
+const juce::Colour bg(0xff08090d), panel(0xff11131a), panel2(0xff191c25), line(0xff303541), text(0xfff4f4f6), muted(0xff9297a3), accent(0xffff3048);
 const juce::StringArray tabNames { "ZMBEQ", "ZMBTUNE", "ZMBCOMP", "ZMBSATURATION", "ZMBDEESSER", "ZMBREVERB", "ZMBDELAY", "ZMBCHORUS", "ZMBMASTER" };
 }
 
 ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) : AudioProcessorEditor(&p), processor(p)
 {
- setSize(1120, 760); setResizable(true, true); setResizeLimits(900, 640, 1500, 1000);
+ setSize(1280, 820); setResizable(true, true); setResizeLimits(1050, 720, 1680, 1120);
  title.setText("ZMBFRM", juce::dontSendNotification); title.setFont(juce::Font(juce::FontOptions(28.0f, juce::Font::bold))); title.setColour(juce::Label::textColourId, text); addAndMakeVisible(title);
- subtitle.setText("VERSION 1.3   /   VOCAL PRODUCTION SUITE   /   REAL-TIME PITCH ENGINE", juce::dontSendNotification); subtitle.setFont(juce::Font(juce::FontOptions(10.0f))); subtitle.setColour(juce::Label::textColourId, muted); addAndMakeVisible(subtitle);
+ subtitle.setText("VERSION 2.0   /   VOCAL PRODUCTION SYSTEM   /   PRECISION PITCH ENGINE", juce::dontSendNotification); subtitle.setFont(juce::Font(juce::FontOptions(10.0f))); subtitle.setColour(juce::Label::textColourId, muted); addAndMakeVisible(subtitle);
  liveNote.setText("WAITING FOR VOICE", juce::dontSendNotification); liveNote.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold))); liveNote.setColour(juce::Label::textColourId, accent); liveNote.setJustificationType(juce::Justification::centredRight); addAndMakeVisible(liveNote);
  inputMeter.setText("IN  -inf dB", juce::dontSendNotification);
  outputMeter.setText("OUT  -inf dB", juce::dontSendNotification);
@@ -35,7 +35,7 @@ ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) 
  selectTab(1); startTimerHz(15);
 }
 
-void ZMBFRMAudioProcessorEditor::selectTab(int index){selectedTab=juce::jlimit(0,8,index);for(int i=0;i<9;++i){tabs[i].setToggleState(i==selectedTab,juce::dontSendNotification);tabs[i].setColour(juce::TextButton::buttonColourId,i==selectedTab?juce::Colour(0xff203b3a):panel2);tabs[i].setColour(juce::TextButton::textColourOffId,i==selectedTab?accent:muted);}updateVisibility();repaint();}
+void ZMBFRMAudioProcessorEditor::selectTab(int index){selectedTab=juce::jlimit(0,8,index);for(int i=0;i<9;++i){tabs[i].setToggleState(i==selectedTab,juce::dontSendNotification);tabs[i].setColour(juce::TextButton::buttonColourId,i==selectedTab?juce::Colour(0xff421923):panel2);tabs[i].setColour(juce::TextButton::textColourOffId,i==selectedTab?accent:muted);}updateVisibility();repaint();}
 void ZMBFRMAudioProcessorEditor::updateVisibility(){
  const bool tune=selectedTab==1;
  for(auto& s:sliders)s.setVisible(false); for(auto& l:labels)l.setVisible(false); for(auto& t:toggles)t.setVisible(false);
@@ -87,7 +87,7 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
   for(int i=0;i<9;++i){float y=area.getY()+38.0f+i*(area.getHeight()-54.0f)/8.0f;g.setColour(i==4?juce::Colour(0xff344b58):line);g.drawHorizontalLine((int)y,area.getX()+14,area.getRight()-14);}
   for(int i=0;i<13;++i){float x=area.getX()+14.0f+i*(area.getWidth()-28.0f)/12.0f;g.setColour(line);g.drawVerticalLine((int)x,area.getY()+30,area.getBottom()-14);}
   g.setColour(accent);g.setFont(juce::Font(juce::FontOptions(12.0f,juce::Font::bold)));g.drawText("ZMBTUNE",area.getX()+20,area.getY()+35,110,20,juce::Justification::left);
-  const float note=processor.getDetectedMidiNote();if(note>=0.0f){float y=area.getCentreY()-(note-60.0f)*5.0f;y=juce::jlimit(area.getY()+40.0f,area.getBottom()-20.0f,y);g.setColour(juce::Colour(0x557ce7d4));g.fillRoundedRectangle(area.getX()+15,y-10,area.getWidth()-30,20,5);g.setColour(accent);g.fillEllipse(area.getCentreX()-5,y-5,10,10);}
+  const float note=processor.getDetectedMidiNote();if(note>=0.0f){float y=area.getCentreY()-(note-60.0f)*5.0f;y=juce::jlimit(area.getY()+40.0f,area.getBottom()-20.0f,y);g.setColour(juce::Colour(0x55ff3048));g.fillRoundedRectangle(area.getX()+15,y-10,area.getWidth()-30,20,5);g.setColour(accent);g.fillEllipse(area.getCentreX()-5,y-5,10,10);}
   g.setColour(muted);g.setFont(10.0f);g.drawText("LOWER PITCH",(int)area.getX()+16,(int)area.getBottom()-24,100,14,juce::Justification::left);g.drawText("HIGHER PITCH",(int)area.getRight()-116,(int)area.getBottom()-24,100,14,juce::Justification::right);
   g.setColour(panel2);g.fillRoundedRectangle(36,444,(float)getWidth()-72,64,10);g.setColour(muted);g.setFont(10.0f);g.drawText("CORRECTION SETTINGS",50,452,240,14,juce::Justification::left);
   // Piano strip: one label per key; visual reference keyboard for scale selection.
@@ -116,7 +116,7 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
    const bool inScale=scaleNotes[scale][(pc-root+12)%12];
    const bool isActive=(pc==active);
    juce::Colour keyColour=black?juce::Colour(0xff202633):juce::Colour(0xffdce4ee);
-   if(inScale) keyColour=black?juce::Colour(0xff28504d):juce::Colour(0xffb7e9df);
+   if(inScale) keyColour=black?juce::Colour(0xff4a2029):juce::Colour(0xffffa0aa);
    if(isActive) keyColour=accent;
    g.setColour(keyColour);g.fillRoundedRectangle(x,ky,kw-1,kh,3);
    g.setColour(black?muted:juce::Colour(0xff394253));
@@ -163,7 +163,7 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
     const float y=graph.getCentreY()-db*(graph.getHeight()-18.0f)/26.0f;
     if(!started){curve.startNewSubPath(x,y);started=true;}else curve.lineTo(x,y);
    }
-   g.setColour(juce::Colour(0x447ce7d4));g.strokePath(curve,juce::PathStrokeType(7.0f));g.setColour(accent);g.strokePath(curve,juce::PathStrokeType(2.0f));
+   g.setColour(juce::Colour(0x44ff3048));g.strokePath(curve,juce::PathStrokeType(7.0f));g.setColour(accent);g.strokePath(curve,juce::PathStrokeType(2.0f));
    const float freqs[]={lfr,mfr,hfr,
     processor.state.getRawParameterValue("band4Freq")->load(),processor.state.getRawParameterValue("band5Freq")->load(),
     processor.state.getRawParameterValue("band6Freq")->load(),processor.state.getRawParameterValue("band7Freq")->load(),processor.state.getRawParameterValue("band8Freq")->load()};
