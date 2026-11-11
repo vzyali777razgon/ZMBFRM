@@ -65,6 +65,9 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
   sr = 44100.0;
  blockSize = juce::jmax(1, blockSize);
  sampleRateHz=sr;
+ // The dual-head shifter has an approximately half-grain fixed centre delay.
+ // Report it so the host can compensate against parallel tracks and buses.
+ setLatencySamples((int)std::ceil(sr*0.020)+64);
  masterMixSmoother.reset(sr, 0.02);
  outputGainSmoother.reset(sr, 0.02);
  masterMixSmoother.setCurrentAndTargetValue(state.getRawParameterValue("mix")->load());
@@ -77,7 +80,7 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  delayBuffer.setSize(2,(int)(sr*2.0)+blockSize+1); delayBuffer.clear();
  dryBuffer.setSize(2,juce::jmax(blockSize,65536)); dryBuffer.clear();
  pitchShiftBuffer.setSize(2,(int)(sr*0.065)+blockSize+1); pitchShiftBuffer.clear();
- pitchRatioBuffer.setSize(1,juce::jmax(blockSize,65536)); pitchRatioBuffer.clear(); delayWritePosition=0; pitchWritePosition=0;
+ pitchRatioBuffer.setSize(1,juce::jmax(blockSize,65536)); pitchRatioBuffer.clear(); delayWritePosition=0; pitchWritePosition=0; pitchShiftSamplesWritten=0; pitchShiftWarmupMix=0.0f;
  pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchHistorySamples=0; pitchSamplesSinceAnalysis=0; pitchAnalysisHop=juce::jlimit(256,2048,(int)std::lround(sr*0.010)); smoothedPitchRatio=1.0f; targetPitchRatio=1.0f; smoothedDetuneCents=0.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; pitchUnvoicedFrames=0; trackedScaleNote=-1;
  detectedMidiNote.store(-1.0f); correctionCents.store(0.0f); inputPeak.store(0.0f); outputPeak.store(0.0f);
 }
@@ -442,21 +445,37 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   pitchRatioBuffer.getWritePointer(0)[i]=smoothedPitchRatio;
  }
  if(tune){
-  // Apply pitch shift before the rest of the vocal chain. Each channel has its own ring data;
-  // shared phase keeps stereo image stable.
+  // The longest read tap needs a full grain of history. Until that history
+  // exists, pass the dry signal; then fade the shifter in over 5 ms.
+  const float grainDepth=juce::jmin((float)(pitchShiftBuffer.getNumSamples()-128),(float)sampleRateHz*0.040f);
+  const int warmupSamples=(int)std::ceil(64.0f+grainDepth);
+  const float warmupAlpha=1.0f-std::exp(-1.0f/((float)sampleRateHz*0.005f));
   for(int i=0;i<n;++i){
    const float ratio=juce::jlimit(0.5f,2.0f,pitchRatioBuffer.getReadPointer(0)[i]);
-   for(int ch=0;ch<chans;++ch)b.getWritePointer(ch)[i]=pitchShiftSample(ch,dryBuffer.getReadPointer(ch)[i],ratio);
-   const float grainDepth=juce::jmin((float)(pitchShiftBuffer.getNumSamples()-128),(float)sampleRateHz*0.040f);
+   const float targetMix=pitchShiftSamplesWritten>=warmupSamples?1.0f:0.0f;
+   pitchShiftWarmupMix+=warmupAlpha*(targetMix-pitchShiftWarmupMix);
+   for(int ch=0;ch<chans;++ch){
+    const float dry=dryBuffer.getReadPointer(ch)[i];
+    const float shifted=pitchShiftSample(ch,dry,ratio);
+    b.getWritePointer(ch)[i]=dry+(shifted-dry)*pitchShiftWarmupMix;
+   }
    const float phaseDelta=(1.0f-ratio)/juce::jmax(1.0f,grainDepth);
-   pitchPhase += phaseDelta;
-   if (pitchPhase >= 1.0f) pitchPhase -= 1.0f;
-   if (pitchPhase < 0.0f) pitchPhase += 1.0f;
+   pitchPhase+=phaseDelta;
+   if(pitchPhase>=1.0f)pitchPhase-=1.0f;
+   if(pitchPhase<0.0f)pitchPhase+=1.0f;
    pitchWritePosition=(pitchWritePosition+1)%pitchShiftBuffer.getNumSamples();
+   pitchShiftSamplesWritten=juce::jmin(warmupSamples,pitchShiftSamplesWritten+1);
   }
  } else {
-  // Keep the circular buffer primed to reduce the click when enabling tuning.
-  for(int i=0;i<n;++i){for(int ch=0;ch<chans;++ch)pitchShiftBuffer.getWritePointer(ch)[pitchWritePosition]=dryBuffer.getReadPointer(ch)[i];pitchWritePosition=(pitchWritePosition+1)%pitchShiftBuffer.getNumSamples();}
+  // Keep the circular buffer primed while tuning is bypassed, so enabling it
+  // later does not start with an empty delay line.
+  pitchShiftWarmupMix=0.0f;
+  const int warmupSamples=(int)std::ceil(64.0f+juce::jmin((float)(pitchShiftBuffer.getNumSamples()-128),(float)sampleRateHz*0.040f));
+  for(int i=0;i<n;++i){
+   for(int ch=0;ch<chans;++ch)pitchShiftBuffer.getWritePointer(ch)[pitchWritePosition]=dryBuffer.getReadPointer(ch)[i];
+   pitchWritePosition=(pitchWritePosition+1)%pitchShiftBuffer.getNumSamples();
+   pitchShiftSamplesWritten=juce::jmin(warmupSamples,pitchShiftSamplesWritten+1);
+  }
  }
  if(v("eqOn")>.5f){
   const float lowGain=v("low"), midGain=v("mid"), highGain=v("high");
