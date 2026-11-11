@@ -20,7 +20,7 @@ ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) 
  presetBox.setColour(juce::ComboBox::textColourId,text);
  presetBox.setColour(juce::ComboBox::outlineColourId,line);
  presetBox.setColour(juce::ComboBox::arrowColourId,accent);
- presetBox.onChange=[this]{const int id=presetBox.getSelectedId();if(id>0)applyFactoryPreset(id-1);};
+ presetBox.onChange=[this]{const int id=presetBox.getSelectedId();if(id>=1&&id<=6)applyFactoryPreset(id-1);};
  addAndMakeVisible(presetBox);
  savePresetButton.setButtonText("SAVE");loadPresetButton.setButtonText("LOAD");
  for(auto* button:{&savePresetButton,&loadPresetButton}){
