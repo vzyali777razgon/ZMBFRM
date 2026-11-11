@@ -17,7 +17,7 @@ ZMBFRM is a vocal-processing effect built around a real-time pitch-correction en
 - **ZMBChorus** — depth and rate.
 - **ZMBMaster** — global wet/dry and output level.
 
-The processor supports mono and stereo main-bus layouts. The editor includes six editable factory starting points (Init / Neutral, Natural Vocal, Modern Pop, Rap Vocal, Hard Tune, and Wide Vocal), live input/output level bars, a live pitch-history trace, a pre-EQ FFT spectrum overlay, and direct EQ-curve editing.
+The processor supports mono and stereo main-bus layouts. The editor includes six editable factory starting points (Init / Neutral, Natural Vocal, Modern Pop, Rap Vocal, Hard Tune, and Wide Vocal), plus save/load support for user presets, live input/output level bars, a live pitch-history trace, a pre-EQ FFT spectrum overlay, and direct EQ-curve editing.
 
 All exposed AudioProcessorValueTreeState parameters are host-automatable and saved/restored with the plug-in state. Existing parameter IDs are retained to protect sessions and automation.
 
