@@ -2,6 +2,7 @@
 
 ## 2.0.0 — Vocal Suite Completion Pass
 - Exposed Gain, Frequency, and Q controls for all five parametric EQ bands.
+- Added complete Chorus mix/feedback/centre-delay controls and independent Reverb mix/width controls.
 - Removed per-change EQ coefficient object allocation from the audio callback by updating preallocated coefficient arrays in place.
 - Added sample-by-sample smoothing for delay time, feedback, and wet mix automation.
 - Added a real pitch-history trace to the tuner display, live input/output level bars, and a fixed-buffer logarithmic FFT spectrum overlay on the EQ graph.
