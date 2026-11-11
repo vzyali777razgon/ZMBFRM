@@ -109,6 +109,8 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  lastLowGain=lastMidGain=lastHighGain=999.0f;lastLowFreq=lastMidFreq=lastHighFreq=-1.0f;lastMidQ=-1.0f;
  for(int band=0;band<5;++band){lastExtraGain[band]=999.0f;lastExtraFreq[band]=-1.0f;lastExtraQ[band]=-1.0f;}
  detectedMidiNote.store(-1.0f); correctionCents.store(0.0f); inputPeak.store(0.0f); outputPeak.store(0.0f);
+ for(auto& point:pitchTrace) point.store(-1.0f,std::memory_order_relaxed);
+ pitchTraceWrite.store(0,std::memory_order_relaxed);pitchTraceCount.store(0,std::memory_order_relaxed);
 }
 
 float ZMBFRMAudioProcessor::detectPitchMidi() const noexcept
@@ -459,6 +461,10 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
      // the actual release without 10 ms control-rate stair-steps.
      targetPitchRatio=1.0f;
     }
+    const int traceWrite=pitchTraceWrite.load(std::memory_order_relaxed);
+    pitchTrace[(size_t)traceWrite].store(detectedMidiNote.load(std::memory_order_relaxed),std::memory_order_relaxed);
+    pitchTraceWrite.store((traceWrite+1)%pitchTraceSize,std::memory_order_relaxed);
+    pitchTraceCount.store(juce::jmin(pitchTraceSize,pitchTraceCount.load(std::memory_order_relaxed)+1),std::memory_order_relaxed);
    }
   }
   // Preserve the ratio at the exact sample where it became valid. Applying
