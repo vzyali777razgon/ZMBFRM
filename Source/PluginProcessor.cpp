@@ -299,10 +299,13 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
 
       // If shifting by one octave restores continuity, treat it as a
       // detector harmonic error instead of a genuine melodic leap.
-      if(downDistance<4.5f && downDistance+1.0f<std::abs(jump))
+      if(downDistance<4.5f && downDistance+1.0f<std::abs(jump)){
        candidate=octaveDown;
-      else if(upDistance<4.5f && upDistance+1.0f<std::abs(jump))
+       trackedPitchMidi+=0.35f*(candidate-trackedPitchMidi);
+      } else if(upDistance<4.5f && upDistance+1.0f<std::abs(jump)){
        candidate=octaveUp;
+       trackedPitchMidi+=0.35f*(candidate-trackedPitchMidi);
+      }
       else {
        if(pendingPitchMidi>=0.0f && std::abs(candidate-pendingPitchMidi)<1.5f)
         ++pendingPitchFrames;
@@ -334,9 +337,6 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
 
     if(!acceptCandidate)
      candidate=trackedPitchMidi;
-    else if(pendingPitchFrames==0 && trackedPitchMidi>=0.0f
-            && std::abs(candidate-trackedPitchMidi)>0.001f)
-     trackedPitchMidi+=0.35f*(candidate-trackedPitchMidi);
 
     // All downstream decisions use the accepted tracker state, never the
     // unverified raw detector result.
