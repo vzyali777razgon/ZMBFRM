@@ -304,7 +304,10 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
        pendingPitchFrames=1;
       }
 
-      const int requiredFrames=std::abs(std::abs(jump)-12.0f)<2.5f ? 4 : 3;
+      // Express confirmation in time, not in an arbitrary number of analysis
+      // hops, so the tracker behaves consistently at different sample rates.
+      const float confirmSeconds=std::abs(std::abs(jump)-12.0f)<2.5f ? 0.045f : 0.032f;
+      const int requiredFrames=juce::jlimit(2,8,(int)std::ceil(confirmSeconds*(float)sampleRateHz/512.0f));
       if(pendingPitchFrames<requiredFrames)
        acceptCandidate=false;
       else {
@@ -357,7 +360,8 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
     // Brief unvoiced gaps are common between voiced frames and consonants.
     // Preserve the pending transition through short gaps; only clear it and
     // relax toward unity after roughly 50 ms without a usable pitch estimate.
-    if(pitchUnvoicedFrames>5){
+    const int unvoicedGraceFrames=juce::jmax(2,(int)std::ceil(0.050f*(float)sampleRateHz/512.0f));
+    if(pitchUnvoicedFrames>unvoicedGraceFrames){
      pendingPitchMidi=-1.0f;
      pendingPitchFrames=0;
      smoothedPitchRatio += 0.012f*(1.0f-smoothedPitchRatio);
