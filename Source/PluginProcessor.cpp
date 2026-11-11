@@ -84,33 +84,38 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
 
 float ZMBFRMAudioProcessor::detectPitchMidi() const noexcept
 {
-    // YIN/CMND detector with anti-aliased 2:1 decimation. The longer window
-    // gives bass voices more complete periods while keeping the working set
-    // bounded and allocation-free on the audio thread.
+    // YIN/CMND detector. A sample-rate-scaled active window preserves enough
+    // low-frequency periods at 88.2/96/192 kHz without forcing a long window
+    // at ordinary rates. Storage is fixed at prepare time; no audio-thread
+    // allocation is performed.
     constexpr float yinThreshold = 0.18f;
     constexpr float fallbackThreshold = 0.34f;
     constexpr float minimumRms = 0.00020f;
     constexpr int decimation = 2;
-    constexpr int analysisSize = pitchWindowSize / decimation;
+    constexpr int analysisCapacity = pitchWindowSize / decimation;
+
+    const int activeWindow = juce::jlimit(2048, pitchWindowSize,
+        (int) std::ceil(sampleRateHz * 0.045));
+    const int analysisSize = activeWindow / decimation;
+    const int oldest = (pitchHistoryWrite + pitchWindowSize - activeWindow) % pitchWindowSize;
 
     const int minLag = juce::jmax(2, (int) std::floor(sampleRateHz / 1100.0));
-    const int maxLag = juce::jmin(pitchWindowSize / 3, (int) std::ceil(sampleRateHz / 55.0));
-    if (maxLag <= minLag + 2)
+    const int maxLag = (int) std::ceil(sampleRateHz / 55.0);
+    const int minDecimatedLag = juce::jmax(2, minLag / decimation);
+    const int maxDecimatedLag = juce::jmin(analysisSize / 2, maxLag / decimation);
+    if (maxDecimatedLag <= minDecimatedLag + 2)
         return -1.0f;
 
-    // DC estimate over the complete circular window.
     double mean = 0.0;
-    for (int i = 0; i < pitchWindowSize; ++i)
-        mean += pitchHistory[(pitchHistoryWrite + i) % pitchWindowSize];
-    mean /= pitchWindowSize;
+    for (int i = 0; i < activeWindow; ++i)
+        mean += pitchHistory[(oldest + i) % pitchWindowSize];
+    mean /= activeWindow;
 
-    // Half-band [1, 2, 1]/4 low-pass before decimation prevents high harmonics
-    // folding into the fundamental search band.
-    std::array<float, analysisSize> x {};
+    std::array<float, analysisCapacity> x {};
     double energy = 0.0;
     for (int i = 0; i < analysisSize; ++i)
     {
-        const int centre = (pitchHistoryWrite + i * decimation) % pitchWindowSize;
+        const int centre = (oldest + i * decimation) % pitchWindowSize;
         const int prev = (centre + pitchWindowSize - 1) % pitchWindowSize;
         const int next = (centre + 1) % pitchWindowSize;
         const float filtered = 0.25f * pitchHistory[(size_t) prev]
@@ -127,17 +132,12 @@ float ZMBFRMAudioProcessor::detectPitchMidi() const noexcept
     if (!std::isfinite(rms) || rms < minimumRms)
         return -1.0f;
 
-    const int minDecimatedLag = juce::jmax(2, minLag / decimation);
-    const int maxDecimatedLag = juce::jmin(analysisSize / 2, maxLag / decimation);
-    std::array<float, analysisSize / 2 + 1> cmnd {};
+    std::array<float, analysisCapacity / 2 + 1> cmnd {};
     double runningSum = 0.0;
-
     for (int tau = 1; tau <= maxDecimatedLag; ++tau)
     {
         double sum = 0.0;
         const int limit = analysisSize - tau;
-        // Sparse accumulation cuts CPU while the anti-aliased input preserves
-        // the periodic structure needed for sub-sample lag interpolation.
         for (int i = 0; i < limit; i += 2)
         {
             const float d = x[(size_t) i] - x[(size_t) (i + tau)];
@@ -148,8 +148,6 @@ float ZMBFRMAudioProcessor::detectPitchMidi() const noexcept
             ? (float) (sum * tau / runningSum) : 1.0f;
     }
 
-    // Find the first sufficiently deep local minimum to prefer the true
-    // fundamental over a later multiple-period trough.
     int bestTau = 0;
     for (int tau = minDecimatedLag; tau <= maxDecimatedLag; ++tau)
     {
@@ -178,7 +176,6 @@ float ZMBFRMAudioProcessor::detectPitchMidi() const noexcept
             return -1.0f;
     }
 
-    // Parabolic interpolation around the CMND trough.
     const float left = cmnd[(size_t) juce::jmax(1, bestTau - 1)];
     const float centre = cmnd[(size_t) bestTau];
     const float right = cmnd[(size_t) juce::jmin(maxDecimatedLag, bestTau + 1)];
