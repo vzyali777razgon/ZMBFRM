@@ -58,6 +58,9 @@ private:
     int pitchSamplesSinceAnalysis = 0;
     float smoothedPitchRatio = 1.0f;
     float pitchPhase = 0.0f;
+    float trackedPitchMidi = -1.0f;
+    float pendingPitchMidi = -1.0f;
+    int pendingPitchFrames = 0;
     std::atomic<float> detectedMidiNote { -1.0f };
     std::atomic<float> correctionCents { 0.0f };
     std::atomic<float> inputPeak { 0.0f }, outputPeak { 0.0f };
