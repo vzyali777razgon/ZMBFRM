@@ -322,6 +322,14 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   if(strongest>1.0e-12 && monoEnergy<strongest*0.25)
    pitchChannel=channelEnergy[0]>=channelEnergy[1]?0:1;
  }
+ const float speedNorm=juce::jlimit(0.0f,1.0f,speed*0.01f);
+ const float humanNorm=juce::jlimit(0.0f,1.0f,human*0.01f);
+ const float responseSeconds=0.008f+0.442f*std::pow(1.0f-speedNorm,2.0f);
+ const float humanizedSeconds=responseSeconds*(1.0f+4.0f*humanNorm);
+ const float correctionAlpha=1.0f-std::exp(-1.0f/((float)sampleRateHz*juce::jmax(0.001f,humanizedSeconds)));
+ const float releaseSeconds=0.14f+0.46f*humanNorm;
+ const float releaseAlpha=1.0f-std::exp(-1.0f/((float)sampleRateHz*releaseSeconds));
+ const int releaseGrace=juce::jmax(2,(int)std::ceil(0.050f*(float)sampleRateHz/(float)pitchAnalysisHop));
  for(int i=0;i<n;++i){
   float mono=0.0f;
   if(pitchChannel>=0) mono=dryBuffer.getReadPointer(pitchChannel)[i];
@@ -426,14 +434,6 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   // Smooth the pitch ratio at audio rate. The target is refreshed by the
   // detector at its analysis cadence, but this one-pole runs every sample so
   // phase velocity changes continuously instead of stepping every 10 ms.
-  const float speedNorm=juce::jlimit(0.0f,1.0f,speed*0.01f);
-  const float humanNorm=juce::jlimit(0.0f,1.0f,human*0.01f);
-  const float responseSeconds=0.008f+0.442f*std::pow(1.0f-speedNorm,2.0f);
-  const float humanizedSeconds=responseSeconds*(1.0f+4.0f*humanNorm);
-  const float correctionAlpha=1.0f-std::exp(-1.0f/((float)sampleRateHz*juce::jmax(0.001f,humanizedSeconds)));
-  const float releaseSeconds=0.14f+0.46f*humanNorm;
-  const float releaseAlpha=1.0f-std::exp(-1.0f/((float)sampleRateHz*releaseSeconds));
-  const int releaseGrace=juce::jmax(2,(int)std::ceil(0.050f*(float)sampleRateHz/(float)pitchAnalysisHop));
   const float alpha=pitchUnvoicedFrames>releaseGrace?releaseAlpha:correctionAlpha;
   smoothedPitchRatio+=alpha*(targetPitchRatio-smoothedPitchRatio);
   pitchRatioBuffer.getWritePointer(0)[i]=smoothedPitchRatio;
