@@ -78,7 +78,7 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  dryBuffer.setSize(2,juce::jmax(blockSize,65536)); dryBuffer.clear();
  pitchShiftBuffer.setSize(2,(int)(sr*0.065)+blockSize+1); pitchShiftBuffer.clear();
  pitchRatioBuffer.setSize(1,juce::jmax(blockSize,65536)); pitchRatioBuffer.clear(); delayWritePosition=0; pitchWritePosition=0;
- pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchSamplesSinceAnalysis=0; pitchAnalysisHop=juce::jlimit(256,2048,(int)std::lround(sr*0.010)); smoothedPitchRatio=1.0f; targetPitchRatio=1.0f; smoothedDetuneCents=0.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; pitchUnvoicedFrames=0; trackedScaleNote=-1;
+ pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchHistorySamples=0; pitchSamplesSinceAnalysis=0; pitchAnalysisHop=juce::jlimit(256,2048,(int)std::lround(sr*0.010)); smoothedPitchRatio=1.0f; targetPitchRatio=1.0f; smoothedDetuneCents=0.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; pitchUnvoicedFrames=0; trackedScaleNote=-1;
  detectedMidiNote.store(-1.0f); correctionCents.store(0.0f); inputPeak.store(0.0f); outputPeak.store(0.0f);
 }
 
@@ -97,6 +97,8 @@ float ZMBFRMAudioProcessor::detectPitchMidi() const noexcept
     const int activeWindow = juce::jlimit(2048, pitchWindowSize,
         (int) std::ceil(sampleRateHz * 0.045));
     const int analysisSize = activeWindow / decimation;
+    if (pitchHistorySamples < activeWindow)
+        return -1.0f;
     const int oldest = (pitchHistoryWrite + pitchWindowSize - activeWindow) % pitchWindowSize;
 
     const int minLag = juce::jmax(2, (int) std::floor(sampleRateHz / 1100.0));
@@ -335,6 +337,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   if(pitchChannel>=0) mono=dryBuffer.getReadPointer(pitchChannel)[i];
   else {for(int ch=0;ch<chans;++ch)mono+=dryBuffer.getReadPointer(ch)[i];mono/=juce::jmax(1,chans);}
   pitchHistory[pitchHistoryWrite]=mono;pitchHistoryWrite=(pitchHistoryWrite+1)%pitchWindowSize;
+  pitchHistorySamples=juce::jmin(pitchWindowSize,pitchHistorySamples+1);
   if(++pitchSamplesSinceAnalysis>=pitchAnalysisHop){
    pitchSamplesSinceAnalysis=0;float detected=detectPitchMidi();
    if(detected>=0.0f){
