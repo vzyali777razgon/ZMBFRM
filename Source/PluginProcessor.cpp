@@ -78,70 +78,113 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
 
 float ZMBFRMAudioProcessor::detectPitchMidi() const noexcept
 {
- // Lightweight normalized autocorrelation with a coarse scan and local parabolic
- // refinement. The input is read oldest-to-newest from the circular history.
- // This is still a monophonic-vocal estimator, not a replacement for a dedicated
- // PSOLA/phase-vocoder tuner, but it reduces lag quantization and octave instability.
- constexpr float minConfidence = 0.58f;
- const int minLag = juce::jmax(2, (int)(sampleRateHz / 1000.0));
- const int maxLag = juce::jmin(pitchWindowSize / 2, (int)(sampleRateHz / 75.0));
- if (maxLag <= minLag + 2)
-     return -1.0f;
+    // YIN difference-function estimator. Compared with selecting the largest
+    // autocorrelation peak, CMND is less likely to lock onto a strong octave
+    // harmonic. The circular history is traversed oldest-to-newest.
+    constexpr float yinThreshold = 0.16f;
+    constexpr float minimumRms = 0.00035f;
+    constexpr int decimation = 2;
 
- // Reject silence and very low-level noise before doing the lag search.
- double energy = 0.0;
- for (int i = 0; i < pitchWindowSize; i += 4)
- {
-     const float x = pitchHistory[(pitchHistoryWrite + i) % pitchWindowSize];
-     energy += (double)x * (double)x;
- }
- if (energy / (pitchWindowSize / 4) < 1.0e-7)
-     return -1.0f;
+    const int minLag = juce::jmax(2, (int) std::floor(sampleRateHz / 1000.0));
+    const int maxLag = juce::jmin(pitchWindowSize / 3, (int) std::ceil(sampleRateHz / 65.0));
+    if (maxLag <= minLag + 2)
+        return -1.0f;
 
- auto correlationAt = [this](int lag) noexcept
- {
-     double cross = 0.0, e1 = 0.0, e2 = 0.0;
-     const int end = pitchWindowSize - lag;
-     // Decimation keeps the analysis cost bounded; local refinement is done below.
-     for (int i = 0; i < end; i += 4)
-     {
-         const float a = pitchHistory[(pitchHistoryWrite + i) % pitchWindowSize];
-         const float b = pitchHistory[(pitchHistoryWrite + i + lag) % pitchWindowSize];
-         cross += (double)a * b;
-         e1 += (double)a * a;
-         e2 += (double)b * b;
-     }
-     return (float)(cross / (std::sqrt(e1 * e2) + 1.0e-15));
- };
+    // Remove DC and reject silence before the more expensive YIN analysis.
+    double mean = 0.0;
+    for (int i = 0; i < pitchWindowSize; i += decimation)
+        mean += pitchHistory[(pitchHistoryWrite + i) % pitchWindowSize];
+    mean /= (pitchWindowSize / decimation);
 
- int bestLag = 0;
- float bestScore = -1.0f;
- // Prefer a clear local peak rather than the first broadly correlated low-frequency lag.
- for (int lag = minLag; lag <= maxLag; ++lag)
- {
-     const float score = correlationAt(lag);
-     if (score > bestScore && (lag == minLag || score >= correlationAt(lag - 1)))
-     {
-         bestScore = score;
-         bestLag = lag;
-     }
- }
- if (bestLag == 0 || bestScore < minConfidence)
-     return -1.0f;
+    double energy = 0.0;
+    for (int i = 0; i < pitchWindowSize; i += decimation)
+    {
+        const float x = pitchHistory[(pitchHistoryWrite + i) % pitchWindowSize] - (float) mean;
+        energy += (double) x * x;
+    }
+    const float rms = (float) std::sqrt(energy / (pitchWindowSize / decimation));
+    if (!std::isfinite(rms) || rms < minimumRms)
+        return -1.0f;
 
- // Parabolic interpolation around the correlation maximum gives sub-sample lag precision.
- const float left = correlationAt(juce::jmax(minLag, bestLag - 1));
- const float centre = correlationAt(bestLag);
- const float right = correlationAt(juce::jmin(maxLag, bestLag + 1));
- const float curvature = left - 2.0f * centre + right;
- float offset = 0.0f;
- if (std::abs(curvature) > 1.0e-6f)
-     offset = juce::jlimit(-0.5f, 0.5f, 0.5f * (left - right) / curvature);
- const float refinedLag = (float)bestLag + offset;
- const float hz = (float)sampleRateHz / refinedLag;
- if (hz < 65.0f || hz > 1000.0f)
-     return -1.0f;
- return 69.0f + 12.0f * std::log2(hz / 440.0f);
+    // Work at half rate for bounded CPU cost. A short local array avoids any
+    // allocation in the audio callback.
+    std::array<float, pitchWindowSize / decimation> x {};
+    for (int i = 0; i < (int) x.size(); ++i)
+    {
+        const float window = 0.5f - 0.5f * std::cos(
+            juce::MathConstants<float>::twoPi * (float) i / (float) (x.size() - 1));
+        x[(size_t) i] = (pitchHistory[(pitchHistoryWrite + i * decimation) % pitchWindowSize]
+                         - (float) mean) * window;
+    }
+
+    const int minDecimatedLag = juce::jmax(2, minLag / decimation);
+    const int maxDecimatedLag = juce::jmin((int) x.size() / 2, maxLag / decimation);
+    std::array<float, pitchWindowSize / (decimation * 2) + 1> difference {};
+    std::array<float, pitchWindowSize / (decimation * 2) + 1> cmnd {};
+
+    double runningSum = 0.0;
+    for (int tau = 1; tau <= maxDecimatedLag; ++tau)
+    {
+        double sum = 0.0;
+        const int limit = (int) x.size() - tau;
+        for (int i = 0; i < limit; i += 2)
+        {
+            const float d = x[(size_t) i] - x[(size_t) (i + tau)];
+            sum += (double) d * d;
+        }
+        difference[(size_t) tau] = (float) sum;
+        runningSum += sum;
+        cmnd[(size_t) tau] = runningSum > 1.0e-15
+            ? (float) (sum * tau / runningSum) : 1.0f;
+    }
+
+    // Select the first convincing trough. This deliberately favours the
+    // fundamental over later integer-multiple periods.
+    int bestTau = 0;
+    for (int tau = minDecimatedLag; tau <= maxDecimatedLag; ++tau)
+    {
+        if (cmnd[(size_t) tau] < yinThreshold)
+        {
+            while (tau + 1 <= maxDecimatedLag
+                   && cmnd[(size_t) (tau + 1)] < cmnd[(size_t) tau])
+                ++tau;
+            bestTau = tau;
+            break;
+        }
+    }
+
+    // If no deep trough exists, allow a lower-confidence estimate only when
+    // the global minimum is still reasonably periodic.
+    if (bestTau == 0)
+    {
+        float best = 1.0f;
+        for (int tau = minDecimatedLag; tau <= maxDecimatedLag; ++tau)
+        {
+            if (cmnd[(size_t) tau] < best)
+            {
+                best = cmnd[(size_t) tau];
+                bestTau = tau;
+            }
+        }
+        if (bestTau == 0 || cmnd[(size_t) bestTau] > 0.32f)
+            return -1.0f;
+    }
+
+    // Parabolic interpolation around the CMND trough.
+    const float left = cmnd[(size_t) juce::jmax(1, bestTau - 1)];
+    const float centre = cmnd[(size_t) bestTau];
+    const float right = cmnd[(size_t) juce::jmin(maxDecimatedLag, bestTau + 1)];
+    const float curvature = left - 2.0f * centre + right;
+    float offset = 0.0f;
+    if (std::abs(curvature) > 1.0e-7f)
+        offset = juce::jlimit(-0.5f, 0.5f, 0.5f * (left - right) / curvature);
+
+    const float period = ((float) bestTau + offset) * (float) decimation;
+    const float hz = (float) sampleRateHz / period;
+    if (!std::isfinite(hz) || hz < 65.0f || hz > 1000.0f)
+        return -1.0f;
+
+    return 69.0f + 12.0f * std::log2(hz / 440.0f);
 }
 
 int ZMBFRMAudioProcessor::getScaleNote(int midiNote,int key,int scale) const noexcept
@@ -203,8 +246,7 @@ float ZMBFRMAudioProcessor::pitchShiftSample(int channel,float input,float ratio
  const float a=readTap(phaseA), b=readTap(phaseB);
  const float wa=1.0f-std::abs(2.0f*phaseA-1.0f), wb=1.0f-wa;
  const float out=a*wa+b*wb;
- const float delta=juce::jlimit(-0.0012f,0.0012f,(1.0f-ratio)/depth);
- juce::ignoreUnused(delta);
+ juce::ignoreUnused(ratio); // Phase increment is applied once per sample in processBlock().
  return out;
 }
 
