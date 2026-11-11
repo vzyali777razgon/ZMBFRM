@@ -43,6 +43,7 @@ private:
     juce::dsp::Reverb reverb;
     juce::AudioBuffer<float> delayBuffer;
     juce::AudioBuffer<float> pitchShiftBuffer;
+    juce::AudioBuffer<float> pitchRatioBuffer;
     juce::AudioBuffer<float> dryBuffer;
     int delayWritePosition = 0;
     int pitchWritePosition = 0;
