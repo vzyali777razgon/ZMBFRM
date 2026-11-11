@@ -2,6 +2,7 @@
 #include <JuceHeader.h>
 #include <array>
 #include <atomic>
+#include <cmath>
 
 class ZMBFRMAudioProcessor final : public juce::AudioProcessor
 {
