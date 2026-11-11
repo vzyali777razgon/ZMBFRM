@@ -78,68 +78,72 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
 
 float ZMBFRMAudioProcessor::detectPitchMidi() const noexcept
 {
-    // YIN difference-function estimator. Compared with selecting the largest
-    // autocorrelation peak, CMND is less likely to lock onto a strong octave
-    // harmonic. The circular history is traversed oldest-to-newest.
-    constexpr float yinThreshold = 0.16f;
-    constexpr float minimumRms = 0.00035f;
+    // YIN/CMND detector with anti-aliased 2:1 decimation. The longer window
+    // gives bass voices more complete periods while keeping the working set
+    // bounded and allocation-free on the audio thread.
+    constexpr float yinThreshold = 0.18f;
+    constexpr float fallbackThreshold = 0.34f;
+    constexpr float minimumRms = 0.00020f;
     constexpr int decimation = 2;
+    constexpr int analysisSize = pitchWindowSize / decimation;
 
-    const int minLag = juce::jmax(2, (int) std::floor(sampleRateHz / 1000.0));
-    const int maxLag = juce::jmin(pitchWindowSize / 3, (int) std::ceil(sampleRateHz / 65.0));
+    const int minLag = juce::jmax(2, (int) std::floor(sampleRateHz / 1100.0));
+    const int maxLag = juce::jmin(pitchWindowSize / 3, (int) std::ceil(sampleRateHz / 55.0));
     if (maxLag <= minLag + 2)
         return -1.0f;
 
-    // Remove DC and reject silence before the more expensive YIN analysis.
+    // DC estimate over the complete circular window.
     double mean = 0.0;
-    for (int i = 0; i < pitchWindowSize; i += decimation)
+    for (int i = 0; i < pitchWindowSize; ++i)
         mean += pitchHistory[(pitchHistoryWrite + i) % pitchWindowSize];
-    mean /= (pitchWindowSize / decimation);
+    mean /= pitchWindowSize;
 
+    // Half-band [1, 2, 1]/4 low-pass before decimation prevents high harmonics
+    // folding into the fundamental search band.
+    std::array<float, analysisSize> x {};
     double energy = 0.0;
-    for (int i = 0; i < pitchWindowSize; i += decimation)
+    for (int i = 0; i < analysisSize; ++i)
     {
-        const float x = pitchHistory[(pitchHistoryWrite + i) % pitchWindowSize] - (float) mean;
-        energy += (double) x * x;
+        const int centre = (pitchHistoryWrite + i * decimation) % pitchWindowSize;
+        const int prev = (centre + pitchWindowSize - 1) % pitchWindowSize;
+        const int next = (centre + 1) % pitchWindowSize;
+        const float filtered = 0.25f * pitchHistory[(size_t) prev]
+                             + 0.5f * pitchHistory[(size_t) centre]
+                             + 0.25f * pitchHistory[(size_t) next]
+                             - (float) mean;
+        const float window = 0.5f - 0.5f * std::cos(
+            juce::MathConstants<float>::twoPi * (float) i / (float) (analysisSize - 1));
+        x[(size_t) i] = filtered * window;
+        energy += (double) filtered * filtered;
     }
-    const float rms = (float) std::sqrt(energy / (pitchWindowSize / decimation));
+
+    const float rms = (float) std::sqrt(energy / analysisSize);
     if (!std::isfinite(rms) || rms < minimumRms)
         return -1.0f;
 
-    // Work at half rate for bounded CPU cost. A short local array avoids any
-    // allocation in the audio callback.
-    std::array<float, pitchWindowSize / decimation> x {};
-    for (int i = 0; i < (int) x.size(); ++i)
-    {
-        const float window = 0.5f - 0.5f * std::cos(
-            juce::MathConstants<float>::twoPi * (float) i / (float) (x.size() - 1));
-        x[(size_t) i] = (pitchHistory[(pitchHistoryWrite + i * decimation) % pitchWindowSize]
-                         - (float) mean) * window;
-    }
-
     const int minDecimatedLag = juce::jmax(2, minLag / decimation);
-    const int maxDecimatedLag = juce::jmin((int) x.size() / 2, maxLag / decimation);
-    std::array<float, pitchWindowSize / (decimation * 2) + 1> difference {};
-    std::array<float, pitchWindowSize / (decimation * 2) + 1> cmnd {};
-
+    const int maxDecimatedLag = juce::jmin(analysisSize / 2, maxLag / decimation);
+    std::array<float, analysisSize / 2 + 1> cmnd {};
     double runningSum = 0.0;
+
     for (int tau = 1; tau <= maxDecimatedLag; ++tau)
     {
         double sum = 0.0;
-        const int limit = (int) x.size() - tau;
+        const int limit = analysisSize - tau;
+        // Sparse accumulation cuts CPU while the anti-aliased input preserves
+        // the periodic structure needed for sub-sample lag interpolation.
         for (int i = 0; i < limit; i += 2)
         {
             const float d = x[(size_t) i] - x[(size_t) (i + tau)];
             sum += (double) d * d;
         }
-        difference[(size_t) tau] = (float) sum;
         runningSum += sum;
         cmnd[(size_t) tau] = runningSum > 1.0e-15
             ? (float) (sum * tau / runningSum) : 1.0f;
     }
 
-    // Select the first convincing trough. This deliberately favours the
-    // fundamental over later integer-multiple periods.
+    // Find the first sufficiently deep local minimum to prefer the true
+    // fundamental over a later multiple-period trough.
     int bestTau = 0;
     for (int tau = minDecimatedLag; tau <= maxDecimatedLag; ++tau)
     {
@@ -153,8 +157,6 @@ float ZMBFRMAudioProcessor::detectPitchMidi() const noexcept
         }
     }
 
-    // If no deep trough exists, allow a lower-confidence estimate only when
-    // the global minimum is still reasonably periodic.
     if (bestTau == 0)
     {
         float best = 1.0f;
@@ -166,7 +168,7 @@ float ZMBFRMAudioProcessor::detectPitchMidi() const noexcept
                 bestTau = tau;
             }
         }
-        if (bestTau == 0 || cmnd[(size_t) bestTau] > 0.32f)
+        if (bestTau == 0 || cmnd[(size_t) bestTau] > fallbackThreshold)
             return -1.0f;
     }
 
@@ -181,7 +183,7 @@ float ZMBFRMAudioProcessor::detectPitchMidi() const noexcept
 
     const float period = ((float) bestTau + offset) * (float) decimation;
     const float hz = (float) sampleRateHz / period;
-    if (!std::isfinite(hz) || hz < 65.0f || hz > 1000.0f)
+    if (!std::isfinite(hz) || hz < 55.0f || hz > 1100.0f)
         return -1.0f;
 
     return 69.0f + 12.0f * std::log2(hz / 440.0f);
