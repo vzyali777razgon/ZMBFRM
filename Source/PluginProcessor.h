@@ -47,6 +47,8 @@ private:
     juce::AudioBuffer<float> dryBuffer;
     int delayWritePosition = 0;
     int pitchWritePosition = 0;
+    int pitchShiftSamplesWritten = 0;
+    float pitchShiftWarmupMix = 0.0f;
     double sampleRateHz = 44100.0;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> masterMixSmoother;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> outputGainSmoother;
