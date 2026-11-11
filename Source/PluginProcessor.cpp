@@ -45,9 +45,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout ZMBFRMAudioProcessor::create
  p.add(std::make_unique<B>("chorusOn","ZMBChorus",false));
  p.add(std::make_unique<F>("chorus","Chorus Depth",juce::NormalisableRange<float>(0.f,1.f,.01f),.2f));
  p.add(std::make_unique<F>("chorusRate","Chorus Rate",juce::NormalisableRange<float>(0.05f,5.0f,.01f),0.25f));
+ p.add(std::make_unique<F>("chorusMix","Chorus Mix",juce::NormalisableRange<float>(0.f,1.f,.01f),0.5f));
+ p.add(std::make_unique<F>("chorusFeedback","Chorus Feedback",juce::NormalisableRange<float>(-0.9f,0.9f,.01f),0.0f));
+ p.add(std::make_unique<F>("chorusDelay","Chorus Centre Delay",juce::NormalisableRange<float>(1.f,100.f,.1f,0.5f),7.0f));
  p.add(std::make_unique<B>("reverbOn","ZMBReverb",true));
  p.add(std::make_unique<F>("reverb","Reverb",juce::NormalisableRange<float>(0.f,1.f,.01f),.15f));
  p.add(std::make_unique<F>("reverbDamping","Reverb Damping",juce::NormalisableRange<float>(0.f,1.f,.01f),.45f));
+ p.add(std::make_unique<F>("reverbMix","Reverb Mix",juce::NormalisableRange<float>(0.f,1.f,.01f),0.15f));
+ p.add(std::make_unique<F>("reverbWidth","Reverb Width",juce::NormalisableRange<float>(0.f,1.f,.01f),0.9f));
  p.add(std::make_unique<B>("deesserOn","ZMBDeEsser",true));
  p.add(std::make_unique<F>("deessAmount","De-esser Amount",juce::NormalisableRange<float>(0.f,1.f,.01f),.35f));
  p.add(std::make_unique<F>("deessFreq","De-esser Frequency",juce::NormalisableRange<float>(4000.f,11000.f,10.f),6500.f));
@@ -600,8 +605,8 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
    x[i]=low+high*reduction;
   }}
  }
- if(v("chorusOn")>.5f){chorus.setRate(v("chorusRate"));chorus.setDepth(v("chorus"));juce::dsp::AudioBlock<float> block(b);chorus.process(juce::dsp::ProcessContextReplacing<float>(block));}
- if(v("reverbOn")>.5f){juce::dsp::Reverb::Parameters rp;rp.roomSize=.2f+v("reverb")*.7f;rp.damping=v("reverbDamping");rp.wetLevel=v("reverb")*.45f;rp.dryLevel=1.0f;rp.width=.9f;reverb.setParameters(rp);juce::dsp::AudioBlock<float> block(b);reverb.process(juce::dsp::ProcessContextReplacing<float>(block));}
+ if(v("chorusOn")>.5f){chorus.setRate(v("chorusRate"));chorus.setDepth(v("chorus"));chorus.setMix(v("chorusMix"));chorus.setFeedback(v("chorusFeedback"));chorus.setCentreDelay(v("chorusDelay"));juce::dsp::AudioBlock<float> block(b);chorus.process(juce::dsp::ProcessContextReplacing<float>(block));}
+ if(v("reverbOn")>.5f){juce::dsp::Reverb::Parameters rp;rp.roomSize=.2f+v("reverb")*.7f;rp.damping=v("reverbDamping");rp.wetLevel=v("reverbMix")*.45f;rp.dryLevel=1.0f;rp.width=v("reverbWidth");reverb.setParameters(rp);juce::dsp::AudioBlock<float> block(b);reverb.process(juce::dsp::ProcessContextReplacing<float>(block));}
  if(v("delayOn")>.5f){
   const int cap=delayBuffer.getNumSamples();
   delayTimeSmoother.setTargetValue(v("delay")); delayFeedbackSmoother.setTargetValue(v("delayFeedback")); delayMixSmoother.setTargetValue(v("delayMix"));
