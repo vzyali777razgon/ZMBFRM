@@ -240,6 +240,16 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
    g.setColour(panel2);g.fillRoundedRectangle(graph,10.0f);g.setColour(line);g.drawRoundedRectangle(graph,10.0f,1.0f);
    for(int db=-12;db<=12;db+=6){float y=graph.getCentreY()-db*(graph.getHeight()-18.0f)/26.0f;g.setColour(db==0?juce::Colour(0xff465365):line);g.drawHorizontalLine((int)y,graph.getX()+8,graph.getRight()-8);g.setColour(muted);g.setFont(9.0f);g.drawText(juce::String(db), (int)graph.getX()+7,(int)y-9,26,16,juce::Justification::left);}
    for(int i=0;i<9;++i){float x=graph.getX()+10.0f+i*(graph.getWidth()-20.0f)/8.0f;g.setColour(line);g.drawVerticalLine((int)x,graph.getY()+8,graph.getBottom()-8);}
+   // Live pre-EQ input spectrum, refreshed from a fixed-size FFT in the audio engine.
+   const float spectrumStep=(graph.getWidth()-20.0f)/(float)ZMBFRMAudioProcessor::spectrumBinCount;
+   g.setColour(juce::Colour(0x334f7895));
+   for(int bin=0;bin<ZMBFRMAudioProcessor::spectrumBinCount;++bin){
+    const float level=processor.getSpectrumBin(bin);
+    const float barHeight=level*(graph.getHeight()-24.0f)*0.78f;
+    const float x=graph.getX()+10.0f+(float)bin*spectrumStep;
+    g.fillRoundedRectangle(x,graph.getBottom()-10.0f-barHeight,juce::jmax(1.0f,spectrumStep-1.0f),barHeight,1.5f);
+   }
+   g.setColour(muted);g.setFont(9.0f);g.drawText("LIVE INPUT SPECTRUM  /  EQ RESPONSE",graph.getX()+12.0f,graph.getY()+5.0f,250.0f,12.0f,juce::Justification::left);
    auto* low=processor.state.getRawParameterValue("low");auto* mid=processor.state.getRawParameterValue("mid");auto* high=processor.state.getRawParameterValue("high");
    auto* lf=processor.state.getRawParameterValue("lowFreq");auto* mf=processor.state.getRawParameterValue("midFreq");auto* mq=processor.state.getRawParameterValue("midQ");auto* hf=processor.state.getRawParameterValue("highFreq");
    const float lg=low->load(),mg=mid->load(),hg=high->load(),q=mq->load();
