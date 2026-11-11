@@ -73,7 +73,7 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  dryBuffer.setSize(2,juce::jmax(blockSize,65536)); dryBuffer.clear();
  pitchShiftBuffer.setSize(2,(int)(sr*0.065)+blockSize+1); pitchShiftBuffer.clear();
  pitchRatioBuffer.setSize(1,juce::jmax(blockSize,65536)); pitchRatioBuffer.clear(); delayWritePosition=0; pitchWritePosition=0;
- pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchSamplesSinceAnalysis=0; smoothedPitchRatio=1.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; pitchUnvoicedFrames=0; trackedScaleNote=-1;
+ pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchSamplesSinceAnalysis=0; smoothedPitchRatio=1.0f; smoothedDetuneCents=0.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; pitchUnvoicedFrames=0; trackedScaleNote=-1;
  detectedMidiNote.store(-1.0f); correctionCents.store(0.0f); inputPeak.store(0.0f); outputPeak.store(0.0f);
 }
 
@@ -366,15 +366,21 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
     }
     trackedScaleNote=nearest;
 
-    const float cents=((float)nearest-candidate)*100.0f+detune;
+    // Detune is a fine-pitch offset, independent of retune speed and
+    // Humanize. Smooth host automation over 20 ms so changing calibration
+    // cannot create a sudden pitch step, even with very fast correction.
+    const float detuneTimeSeconds=0.020f;
+    const float detuneAlpha=1.0f-std::exp(-(512.0f/(float)sampleRateHz)/detuneTimeSeconds);
+    smoothedDetuneCents += juce::jlimit(0.001f,0.95f,detuneAlpha)*(juce::jlimit(-100.0f,100.0f,detune)-smoothedDetuneCents);
+    const float cents=((float)nearest-candidate)*100.0f+smoothedDetuneCents;
     correctionCents.store(cents);
     const float target=std::pow(2.0f,cents/1200.0f);
 
     // Speed is mapped to a real-time response constant rather than a raw
     // per-analysis coefficient. This keeps the musical feel consistent
     // across sample rates and the fixed 512-sample analysis cadence.
-    const float speedNorm=juce::jlimit(0.0f,1.0f,speed/100.0f);
-    const float humanNorm=juce::jlimit(0.0f,1.0f,human/100.0f);
+    const float speedNorm=juce::jlimit(0.0f,1.0f,speed*0.01f);
+    const float humanNorm=juce::jlimit(0.0f,1.0f,human*0.01f);
     const float responseSeconds=0.008f+0.442f*std::pow(1.0f-speedNorm,2.0f);
     const float humanizedSeconds=responseSeconds*(1.0f+4.0f*humanNorm);
     const float analysisSeconds=512.0f/(float)sampleRateHz;
@@ -393,7 +399,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
      pendingPitchFrames=0;
      // Release toward the uncorrected signal with a slower, humanize-aware
      // time constant to avoid a sudden pitch snap at phrase boundaries.
-     const float releaseSeconds=0.14f+0.46f*(human/100.0f);
+     const float releaseSeconds=0.14f+0.46f*juce::jlimit(0.0f,1.0f,human*0.01f);
      const float releaseAlpha=1.0f-std::exp(-(512.0f/(float)sampleRateHz)/releaseSeconds);
      smoothedPitchRatio += juce::jlimit(0.001f,0.25f,releaseAlpha)*(1.0f-smoothedPitchRatio);
     }
