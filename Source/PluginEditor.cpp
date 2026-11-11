@@ -42,9 +42,9 @@ ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) 
   addAndMakeVisible(*meter);
  }
  for (int i=0;i<9;++i) { tabs[i].setButtonText(tabNames[i]); tabs[i].setClickingTogglesState(false); tabs[i].setColour(juce::TextButton::buttonColourId, panel2); tabs[i].setColour(juce::TextButton::textColourOffId, muted); tabs[i].setColour(juce::TextButton::textColourOnId, accent); tabs[i].onClick=[this,i]{selectTab(i);}; addAndMakeVisible(tabs[i]); }
- const char* ids[]={"low","mid","high","threshold","ratio","sat","deessAmount","deessFreq","reverb","delay","chorus","mix","out","lowFreq","midFreq","midQ","highFreq","compAttack","compRelease","satMix","reverbDamping","delayFeedback","delayMix","chorusRate","deessThreshold","band4Gain","band4Freq","band4Q","band5Gain","band5Freq","band5Q","band6Gain","band6Freq","band6Q","band7Gain","band7Freq","band7Q","band8Gain","band8Freq","band8Q"};
- const char* names[]={"LOW GAIN","MID GAIN","HIGH GAIN","THRESHOLD","RATIO","DRIVE","DE-ESS AMOUNT","DE-ESS FREQ","ROOM","DELAY TIME","CHORUS DEPTH","WET / DRY","OUTPUT","LOW FREQ","MID FREQ","MID Q","HIGH FREQ","ATTACK","RELEASE","SAT MIX","REVERB DAMPING","DELAY FEEDBACK","DELAY MIX","CHORUS RATE","DE-ESS THRESHOLD","BAND 4 GAIN","BAND 4 FREQ","BAND 4 Q","BAND 5 GAIN","BAND 5 FREQ","BAND 5 Q","BAND 6 GAIN","BAND 6 FREQ","BAND 6 Q","BAND 7 GAIN","BAND 7 FREQ","BAND 7 Q","BAND 8 GAIN","BAND 8 FREQ","BAND 8 Q"};
- for(int i=0;i<40;++i){ sliders[i].setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag); sliders[i].setTextBoxStyle(juce::Slider::TextBoxBelow,false,68,20); sliders[i].setColour(juce::Slider::rotarySliderFillColourId,accent); sliders[i].setColour(juce::Slider::rotarySliderOutlineColourId,line); sliders[i].setColour(juce::Slider::thumbColourId,text); sliders[i].setColour(juce::Slider::textBoxTextColourId,text); sliders[i].setColour(juce::Slider::textBoxBackgroundColourId,panel2); addAndMakeVisible(sliders[i]); sliders[i].setTooltip(juce::String(names[i]) + " — double-click to reset"); labels[i].setText(names[i],juce::dontSendNotification); labels[i].setJustificationType(juce::Justification::centred); labels[i].setColour(juce::Label::textColourId,muted); addAndMakeVisible(labels[i]); sliderAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state,ids[i],sliders[i]); }
+ const char* ids[]={"low","mid","high","threshold","ratio","sat","deessAmount","deessFreq","reverb","delay","chorus","mix","out","lowFreq","midFreq","midQ","highFreq","compAttack","compRelease","satMix","reverbDamping","delayFeedback","delayMix","chorusRate","deessThreshold","band4Gain","band4Freq","band4Q","band5Gain","band5Freq","band5Q","band6Gain","band6Freq","band6Q","band7Gain","band7Freq","band7Q","band8Gain","band8Freq","band8Q","chorusMix","chorusFeedback","chorusDelay","reverbMix","reverbWidth"};
+ const char* names[]={"LOW GAIN","MID GAIN","HIGH GAIN","THRESHOLD","RATIO","DRIVE","DE-ESS AMOUNT","DE-ESS FREQ","ROOM","DELAY TIME","CHORUS DEPTH","WET / DRY","OUTPUT","LOW FREQ","MID FREQ","MID Q","HIGH FREQ","ATTACK","RELEASE","SAT MIX","REVERB DAMPING","DELAY FEEDBACK","DELAY MIX","CHORUS RATE","DE-ESS THRESHOLD","BAND 4 GAIN","BAND 4 FREQ","BAND 4 Q","BAND 5 GAIN","BAND 5 FREQ","BAND 5 Q","BAND 6 GAIN","BAND 6 FREQ","BAND 6 Q","BAND 7 GAIN","BAND 7 FREQ","BAND 7 Q","BAND 8 GAIN","BAND 8 FREQ","BAND 8 Q","CHORUS MIX","CHORUS FEEDBACK","CHORUS DELAY","REVERB MIX","REVERB WIDTH"};
+ for(int i=0;i<45;++i){ sliders[i].setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag); sliders[i].setTextBoxStyle(juce::Slider::TextBoxBelow,false,68,20); sliders[i].setColour(juce::Slider::rotarySliderFillColourId,accent); sliders[i].setColour(juce::Slider::rotarySliderOutlineColourId,line); sliders[i].setColour(juce::Slider::thumbColourId,text); sliders[i].setColour(juce::Slider::textBoxTextColourId,text); sliders[i].setColour(juce::Slider::textBoxBackgroundColourId,panel2); addAndMakeVisible(sliders[i]); sliders[i].setTooltip(juce::String(names[i]) + " — double-click to reset"); labels[i].setText(names[i],juce::dontSendNotification); labels[i].setJustificationType(juce::Justification::centred); labels[i].setColour(juce::Label::textColourId,muted); addAndMakeVisible(labels[i]); sliderAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state,ids[i],sliders[i]); }
  const char* bids[]={"eqOn","compOn","satOn","deesserOn","reverbOn","delayOn","chorusOn","tuneOn"};
  const char* bnames[]={"EQ ACTIVE","COMP ACTIVE","SATURATION","DE-ESSER ACTIVE","REVERB ACTIVE","DELAY ACTIVE","CHORUS ACTIVE","ZMBTUNE ACTIVE"};
  for(int i=0;i<8;++i){toggles[i].setButtonText(bnames[i]);toggles[i].setTooltip("Enable or bypass this processing module");toggles[i].setColour(juce::ToggleButton::textColourId,text);toggles[i].setColour(juce::ToggleButton::tickColourId,accent);addAndMakeVisible(toggles[i]);buttonAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.state,bids[i],toggles[i]);}
@@ -76,8 +76,8 @@ void ZMBFRMAudioProcessorEditor::applyFactoryPreset(int index)
   {"band8Gain",0},{"band8Freq",4000},{"band8Q",1},
   {"compOn",1},{"threshold",-18},{"ratio",3},{"compAttack",8},{"compRelease",100},
   {"satOn",1},{"sat",0.15f},{"satMix",1},{"deesserOn",1},{"deessAmount",0.35f},{"deessFreq",6500},{"deessThreshold",0.035f},
-  {"reverbOn",1},{"reverb",0.15f},{"reverbDamping",0.45f},{"delayOn",0},{"delay",0.2f},{"delayFeedback",0.32f},{"delayMix",0.35f},
-  {"chorusOn",0},{"chorus",0.2f},{"chorusRate",0.25f},{"mix",1},{"out",0},
+  {"reverbOn",1},{"reverb",0.15f},{"reverbDamping",0.45f},{"reverbMix",0.15f},{"reverbWidth",0.9f},{"delayOn",0},{"delay",0.2f},{"delayFeedback",0.32f},{"delayMix",0.35f},
+  {"chorusOn",0},{"chorus",0.2f},{"chorusRate",0.25f},{"chorusMix",0.5f},{"chorusFeedback",0},{"chorusDelay",7},{"mix",1},{"out",0},
   {"tuneOn",1},{"key",0},{"scale",2},{"speed",50},{"humanize",20},{"detune",0}
  };
  for(const auto& item:defaults) set(item.first,item.second);
@@ -86,34 +86,34 @@ void ZMBFRMAudioProcessorEditor::applyFactoryPreset(int index)
   case 1: // Natural Vocal
    set("low",-2);set("mid",0.5f);set("high",1.5f);set("lowFreq",120);set("midFreq",2800);set("midQ",0.9f);set("highFreq",9000);
    set("threshold",-24);set("ratio",2.5f);set("compAttack",18);set("compRelease",140);
-   set("sat",0.08f);set("satMix",0.25f);set("deessAmount",0.3f);set("reverb",0.08f);
+   set("sat",0.08f);set("satMix",0.25f);set("deessAmount",0.3f);set("reverb",0.08f);set("reverbMix",0.08f);
    set("scale",1);set("speed",30);set("humanize",75);
    break;
   case 2: // Modern Pop
    set("low",-1.5f);set("mid",-1);set("high",2.5f);set("midFreq",3200);set("midQ",1.1f);set("highFreq",8500);
    set("band6Gain",1);set("band6Freq",2800);set("band7Gain",1);set("band7Freq",5200);set("band8Gain",1.5f);set("band8Freq",11000);
    set("threshold",-22);set("ratio",3.5f);set("compAttack",8);set("compRelease",100);
-   set("sat",0.18f);set("satMix",0.3f);set("deessAmount",0.45f);set("reverb",0.18f);
+   set("sat",0.18f);set("satMix",0.3f);set("deessAmount",0.45f);set("reverb",0.18f);set("reverbMix",0.18f);
    set("delayOn",1);set("delay",0.22f);set("delayMix",0.14f);set("delayFeedback",0.2f);
    set("scale",1);set("speed",65);set("humanize",35);
    break;
   case 3: // Rap Vocal
    set("low",-3);set("mid",-2);set("high",2);set("lowFreq",140);set("midFreq",450);set("midQ",1.2f);set("highFreq",7500);
    set("threshold",-26);set("ratio",4.5f);set("compAttack",4);set("compRelease",85);
-   set("sat",0.28f);set("satMix",0.4f);set("deessAmount",0.32f);set("reverb",0.05f);
+   set("sat",0.28f);set("satMix",0.4f);set("deessAmount",0.32f);set("reverb",0.05f);set("reverbMix",0.05f);
    set("delayOn",1);set("delay",0.16f);set("delayMix",0.2f);set("delayFeedback",0.25f);
    set("scale",2);set("speed",72);set("humanize",22);
    break;
   case 4: // Hard Tune
    set("tuneOn",1);set("scale",0);set("speed",100);set("humanize",0);set("detune",0);
-   set("reverb",0.08f);set("delayOn",0);set("chorusOn",0);
+   set("reverb",0.08f);set("reverbMix",0.08f);set("delayOn",0);set("chorusOn",0);
    break;
   case 5: // Wide Vocal
    set("low",-1);set("high",1.5f);set("threshold",-20);set("ratio",2.8f);
    set("sat",0.12f);set("satMix",0.2f);set("deessAmount",0.4f);
-   set("reverb",0.24f);set("reverbDamping",0.55f);
+   set("reverb",0.24f);set("reverbMix",0.24f);set("reverbDamping",0.55f);
    set("delayOn",1);set("delay",0.28f);set("delayFeedback",0.28f);set("delayMix",0.24f);
-   set("chorusOn",1);set("chorus",0.32f);set("chorusRate",0.22f);
+   set("chorusOn",1);set("chorus",0.32f);set("chorusRate",0.22f);set("chorusMix",0.35f);set("chorusFeedback",0.1f);set("chorusDelay",9.0f);
    set("speed",35);set("humanize",65);
    break;
   default: break;
@@ -186,9 +186,9 @@ void ZMBFRMAudioProcessorEditor::updateVisibility(){
  case 2: ss(3);ss(4);ss(17);ss(18);tt(1);break;
  case 3: ss(5);ss(19);tt(2);break;
  case 4: ss(6);ss(7);ss(24);tt(3);break;
- case 5: ss(8);ss(20);tt(4);break;
+ case 5: ss(8);ss(20);ss(43);ss(44);tt(4);break;
  case 6: ss(9);ss(21);ss(22);tt(5);break;
- case 7: ss(10);ss(23);tt(6);break;
+ case 7: ss(10);ss(23);ss(40);ss(41);ss(42);tt(6);break;
  case 8: ss(11);ss(12);break;
  default: break;
  }
@@ -380,7 +380,7 @@ void ZMBFRMAudioProcessorEditor::resized()
    for(int j=0;j<4;++j){int i=ids[j],x=50+j*175;labels[i].setBounds(x,360,160,20);sliders[i].setBounds(x+4,380,145,140);}
   } else {
    visibleIndex=0;
-   for(int i=0;i<40;++i)if(sliders[i].isVisible()){
+   for(int i=0;i<45;++i)if(sliders[i].isVisible()){
     const int col=visibleIndex%4, row=visibleIndex/4; ++visibleIndex;
     const int cellW=(getWidth()-100)/4, x=40+col*cellW, y=350+row*150;
     labels[i].setBounds(x,y,cellW-8,20); sliders[i].setBounds(x+4,y+22,cellW-16,124);
