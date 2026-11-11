@@ -83,6 +83,16 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
  g.fillAll(bg);g.setColour(panel);g.fillRoundedRectangle(18,84,(float)getWidth()-36,44,10);g.setColour(panel);g.fillRoundedRectangle(18,142,(float)getWidth()-36,(float)getHeight()-160,14);
  g.setColour(line);g.drawRoundedRectangle(18,84,(float)getWidth()-36,44,10,1);g.drawRoundedRectangle(18,142,(float)getWidth()-36,(float)getHeight()-160,14,1);
  g.setColour(muted);g.setFont(10.0f);g.drawText("ZMB AUDIO  /  VST3",getWidth()-190,34,165,18,juce::Justification::centredRight);
+ // Compact input/output level bars share the same peak telemetry as the labels.
+ const float meterValues[]={processor.getInputPeak(),processor.getOutputPeak()};
+ const int meterX[]={getWidth()-300,getWidth()-170};
+ for(int i=0;i<2;++i){
+  const float db=meterValues[i]>0.000001f?juce::Decibels::gainToDecibels(meterValues[i]):-60.0f;
+  const float level=juce::jlimit(0.0f,1.0f,(db+60.0f)/60.0f);
+  g.setColour(panel2);g.fillRoundedRectangle((float)meterX[i],61.0f,112.0f,5.0f,2.5f);
+  g.setColour(meterValues[i]>=1.0f?juce::Colours::red:accent);
+  g.fillRoundedRectangle((float)meterX[i],61.0f,112.0f*level,5.0f,2.5f);
+ }
  if(selectedTab==1){
   auto area=juce::Rectangle<float>(36,160,(float)getWidth()-72,270);g.setColour(panel2);g.fillRoundedRectangle(area,10);g.setColour(line);g.drawRoundedRectangle(area,10,1);
   g.setColour(muted);g.setFont(10.0f);g.drawText("PITCH TRACKING  /  INPUT ANALYSIS",area.toNearestInt().reduced(16).removeFromTop(20),juce::Justification::left);
