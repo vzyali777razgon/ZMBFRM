@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include <utility>
 
 namespace {
 const juce::Colour bg(0xff08090d), panel(0xff11131a), panel2(0xff191c25), line(0xff303541), text(0xfff4f4f6), muted(0xff9297a3), accent(0xffff3048);
