@@ -59,6 +59,7 @@ private:
     int pitchSamplesSinceAnalysis = 0;
     int pitchAnalysisHop = 512;
     float smoothedPitchRatio = 1.0f;
+    float targetPitchRatio = 1.0f;
     float smoothedDetuneCents = 0.0f;
     float pitchPhase = 0.0f;
     float trackedPitchMidi = -1.0f;
