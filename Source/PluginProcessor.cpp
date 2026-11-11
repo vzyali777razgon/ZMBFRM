@@ -127,9 +127,10 @@ float ZMBFRMAudioProcessor::detectPitchMidi() const noexcept
                              + 0.5f * pitchHistory[(size_t) centre]
                              + 0.25f * pitchHistory[(size_t) next]
                              - (float) mean;
-        const float window = 0.5f - 0.5f * std::cos(
-            juce::MathConstants<float>::twoPi * (float) i / (float) (analysisSize - 1));
-        x[(size_t) i] = filtered * window;
+        // Keep the YIN frame unwindowed. Tapering the waveform itself
+        // distorts long-lag difference values and can bias low fundamentals;
+        // CMND already normalises the difference function.
+        x[(size_t) i] = filtered;
         energy += (double) filtered * filtered;
     }
 
