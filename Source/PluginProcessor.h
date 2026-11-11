@@ -31,6 +31,16 @@ public:
     float getCorrectionCents() const noexcept { return correctionCents.load(); }
     float getInputPeak() const noexcept { return inputPeak.load(); }
     float getOutputPeak() const noexcept { return outputPeak.load(); }
+    static constexpr int pitchTraceSize = 128;
+    int getPitchTraceCount() const noexcept { return pitchTraceCount.load(std::memory_order_relaxed); }
+    float getPitchTracePoint(int index) const noexcept
+    {
+        const int count = getPitchTraceCount();
+        if (index < 0 || index >= count) return -1.0f;
+        const int write = pitchTraceWrite.load(std::memory_order_relaxed);
+        const int oldest = (write - count + pitchTraceSize) % pitchTraceSize;
+        return pitchTrace[(size_t)((oldest + index) % pitchTraceSize)].load(std::memory_order_relaxed);
+    }
 private:
     using Filter = juce::dsp::IIR::Filter<float>;
     Filter lowFilter[2], midFilter[2], highFilter[2];
@@ -74,6 +84,8 @@ private:
     int pendingPitchFrames = 0;
     int pitchUnvoicedFrames = 0;
     int trackedScaleNote = -1;
+    std::array<std::atomic<float>, pitchTraceSize> pitchTrace {};
+    std::atomic<int> pitchTraceWrite { 0 }, pitchTraceCount { 0 };
     std::atomic<float> detectedMidiNote { -1.0f };
     std::atomic<float> correctionCents { 0.0f };
     std::atomic<float> inputPeak { 0.0f }, outputPeak { 0.0f };
