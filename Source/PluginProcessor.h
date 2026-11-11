@@ -57,6 +57,7 @@ private:
     std::array<float, pitchWindowSize> pitchHistory{};
     int pitchHistoryWrite = 0;
     int pitchSamplesSinceAnalysis = 0;
+    int pitchAnalysisHop = 512;
     float smoothedPitchRatio = 1.0f;
     float smoothedDetuneCents = 0.0f;
     float pitchPhase = 0.0f;
