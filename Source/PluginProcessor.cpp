@@ -7,6 +7,7 @@ ZMBFRMAudioProcessor::ZMBFRMAudioProcessor()
    state(*this,nullptr,"ZMBFRM_STATE",createParameterLayout())
 {
  for(int band=0;band<5;++band){
+  const auto suffix=juce::String(band+4);
   extraBandGainParams[(size_t)band]=state.getRawParameterValue(("band"+suffix+"Gain").toRawUTF8());
   extraBandFreqParams[(size_t)band]=state.getRawParameterValue(("band"+suffix+"Freq").toRawUTF8());
   extraBandQParams[(size_t)band]=state.getRawParameterValue(("band"+suffix+"Q").toRawUTF8());
@@ -550,6 +551,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
  if(v("satOn")>.5f){float drive=1.f+v("sat")*9.f,norm=std::tanh(drive),satMix=juce::jlimit(0.0f,1.0f,v("satMix"));for(int ch=0;ch<chans;++ch){auto*x=b.getWritePointer(ch);for(int i=0;i<n;++i){const float dry=x[i];const float wet=std::tanh(dry*drive)/juce::jmax(0.001f,norm);x[i]=dry+(wet-dry)*satMix;}}}
  if(v("deesserOn")>.5f){
   const float amount=v("deessAmount");
+  const float threshold=v("deessThreshold");
   const float cutoff=juce::jlimit(1000.0f,(float)sampleRateHz*0.48f,v("deessFreq"));
   const float hpCoeff=std::exp(-juce::MathConstants<float>::twoPi*cutoff/(float)sampleRateHz);
   const float attackCoeff=std::exp(-1.0f/(0.0015f*(float)sampleRateHz));
@@ -559,7 +561,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
    const float high=x[i]-low;deesserLowState[ch]=low;
    const float mag=std::abs(high);const float coeff=mag>deesserEnvelope[ch]?attackCoeff:releaseCoeff;
    deesserEnvelope[ch]=coeff*deesserEnvelope[ch]+(1.0f-coeff)*mag;
-   const float threshold=v("deessThreshold");const float reduction=1.0f/(1.0f+amount*12.0f*juce::jmax(0.0f,deesserEnvelope[ch]-threshold));
+   const float reduction=1.0f/(1.0f+amount*12.0f*juce::jmax(0.0f,deesserEnvelope[ch]-threshold));
    x[i]=low+high*reduction;
   }}
  }
