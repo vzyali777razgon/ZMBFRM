@@ -72,7 +72,7 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  delayBuffer.setSize(2,(int)(sr*2.0)+blockSize+1); delayBuffer.clear();
  dryBuffer.setSize(2,juce::jmax(blockSize,65536)); dryBuffer.clear();
  pitchShiftBuffer.setSize(2,(int)(sr*0.065)+blockSize+1); pitchShiftBuffer.clear(); delayWritePosition=0; pitchWritePosition=0;
- pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchSamplesSinceAnalysis=0; smoothedPitchRatio=1.0f; pitchPhase=0.0f;
+ pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchSamplesSinceAnalysis=0; smoothedPitchRatio=1.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0;
  detectedMidiNote.store(-1.0f); correctionCents.store(0.0f); inputPeak.store(0.0f); outputPeak.store(0.0f);
 }
 
@@ -281,21 +281,51 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   if(++pitchSamplesSinceAnalysis>=512){
    pitchSamplesSinceAnalysis=0;float detected=detectPitchMidi();
    if(detected>=0.0f){
-    detectedMidiNote.store(detected);
-    const int nearest=getScaleNote((int)std::lround(detected),key,scale);
-    float cents=((float)nearest-detected)*100.0f+detune;
-    // Humanize eases correction; Speed controls response smoothing/strength.
-    const float correction= cents*(1.0f-human*0.0025f);
+    // Temporal note tracking: reject isolated octave flips from a strong second
+    // harmonic, but allow a genuine large melodic leap after repeated evidence.
+    float candidate=detected;
+    if(trackedPitchMidi>=0.0f){
+     const float jump=candidate-trackedPitchMidi;
+     if(std::abs(jump)>7.0f){
+      const float octaveDown=candidate-12.0f;
+      const float octaveUp=candidate+12.0f;
+      const float downDistance=std::abs(octaveDown-trackedPitchMidi);
+      const float upDistance=std::abs(octaveUp-trackedPitchMidi);
+      if(downDistance+1.0f<std::abs(jump) && downDistance<5.0f) candidate=octaveDown;
+      else if(upDistance+1.0f<std::abs(jump) && upDistance<5.0f) candidate=octaveUp;
+      else {
+       if(pendingPitchMidi>=0.0f && std::abs(candidate-pendingPitchMidi)<2.0f) ++pendingPitchFrames;
+       else { pendingPitchMidi=candidate; pendingPitchFrames=1; }
+       if(pendingPitchFrames<3) candidate=trackedPitchMidi;
+       else { trackedPitchMidi=candidate; pendingPitchMidi=-1.0f; pendingPitchFrames=0; }
+      }
+     } else {
+      trackedPitchMidi=0.75f*trackedPitchMidi+0.25f*candidate;
+      pendingPitchMidi=-1.0f; pendingPitchFrames=0;
+     }
+    } else {
+     trackedPitchMidi=candidate;
+     pendingPitchMidi=-1.0f; pendingPitchFrames=0;
+    }
+    if(pendingPitchFrames==0 && candidate!=trackedPitchMidi)
+     trackedPitchMidi=0.75f*trackedPitchMidi+0.25f*candidate;
+    detectedMidiNote.store(candidate);
+    const int nearest=getScaleNote((int)std::lround(candidate),key,scale);
+    const float cents=((float)nearest-candidate)*100.0f+detune;
+    // Humanize reduces correction depth; speed controls how quickly the
+    // smoothed ratio approaches the target without discontinuous jumps.
+    const float correction=cents*(1.0f-human*0.0025f);
     correctionCents.store(correction);
     const float target=std::pow(2.0f,correction/1200.0f);
-    const float smoothing=juce::jlimit(0.02f,0.95f, 0.02f + speed * 0.0092f);
+    const float smoothing=juce::jlimit(0.02f,0.95f,0.02f+speed*0.0092f);
     smoothedPitchRatio+=smoothing*(target-smoothedPitchRatio);
    } else {
-    // Unvoiced frames must not erase the independent audio meters. Ease the tuner
-    // back toward unity instead of abruptly changing its target on breaths/noise.
     detectedMidiNote.store(-1.0f);
     correctionCents.store(0.0f);
-    smoothedPitchRatio += 0.035f * (1.0f - smoothedPitchRatio);
+    pendingPitchMidi=-1.0f; pendingPitchFrames=0;
+    // Keep the last valid note briefly through consonants/breath gaps, then
+    // gently relax the pitch ratio toward unity rather than snapping.
+    smoothedPitchRatio += 0.012f*(1.0f-smoothedPitchRatio);
    }
   }
  }
