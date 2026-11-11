@@ -521,6 +521,10 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
    auto* x = b.getWritePointer(ch);
    const auto* d = dryBuffer.getReadPointer(ch);
    x[i] = (d[i] * (1.0f - mix) + x[i] * mix) * gain;
+   // Final containment: invalid intermediate DSP state must never escape
+   // the plug-in as NaN/Inf and poison the host's downstream signal chain.
+   if (!std::isfinite(x[i]))
+    x[i] = 0.0f;
   }
  }
  // Clear any host-provided output channels that have no matching input/scratch channel.
