@@ -24,13 +24,13 @@ private:
     juce::TextButton savePresetButton, loadPresetButton;
     std::unique_ptr<juce::FileChooser> fileChooser;
     juce::TextButton tabs[9];
-    juce::Slider sliders[40];
-    juce::Label labels[40];
+    juce::Slider sliders[45];
+    juce::Label labels[45];
     juce::ToggleButton toggles[8];
     juce::ComboBox keyBox, scaleBox;
     juce::Slider speed, humanize, detune;
     juce::Label tuneLabels[3];
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> sliderAttachments[40], tuneAttachments[3];
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> sliderAttachments[45], tuneAttachments[3];
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> buttonAttachments[8];
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> comboAttachments[2];
     int selectedTab = 1;
