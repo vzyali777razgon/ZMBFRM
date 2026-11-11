@@ -56,6 +56,7 @@ private:
     static constexpr int pitchWindowSize = 8192;
     std::array<float, pitchWindowSize> pitchHistory{};
     int pitchHistoryWrite = 0;
+    int pitchHistorySamples = 0;
     int pitchSamplesSinceAnalysis = 0;
     int pitchAnalysisHop = 512;
     float smoothedPitchRatio = 1.0f;
