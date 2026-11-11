@@ -41,6 +41,10 @@ private:
     juce::dsp::Compressor<float> compressor;
     juce::dsp::Chorus<float> chorus;
     juce::dsp::Reverb reverb;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> delayTimeSmoother, delayFeedbackSmoother, delayMixSmoother;
+    std::array<std::atomic<float>*, 5> extraBandGainParams {};
+    std::array<std::atomic<float>*, 5> extraBandFreqParams {};
+    std::array<std::atomic<float>*, 5> extraBandQParams {};
     juce::AudioBuffer<float> delayBuffer;
     juce::AudioBuffer<float> pitchShiftBuffer;
     juce::AudioBuffer<float> pitchRatioBuffer;
