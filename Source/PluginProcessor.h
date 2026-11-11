@@ -37,6 +37,12 @@ public:
     float getCorrectionCents() const noexcept { return correctionCents.load(); }
     float getInputPeak() const noexcept { return inputPeak.load(); }
     float getOutputPeak() const noexcept { return outputPeak.load(); }
+    static constexpr int spectrumBinCount = 64;
+    float getSpectrumBin(int index) const noexcept
+    {
+        if (index < 0 || index >= spectrumBinCount) return 0.0f;
+        return spectrumMagnitudes[(size_t)index].load(std::memory_order_relaxed);
+    }
     static constexpr int pitchTraceSize = 128;
     int getPitchTraceCount() const noexcept { return pitchTraceCount.load(std::memory_order_relaxed); }
     float getPitchTracePoint(int index) const noexcept
@@ -57,6 +63,17 @@ private:
     juce::dsp::Compressor<float> compressor;
     juce::dsp::Chorus<float> chorus;
     juce::dsp::Reverb reverb;
+    static constexpr int spectrumOrder = 13;
+    static constexpr int spectrumSize = 1 << spectrumOrder;
+    juce::dsp::FFT spectrumFFT { spectrumOrder };
+    std::array<float, spectrumSize> spectrumHistory {};
+    std::array<float, spectrumSize> spectrumWindow {};
+    std::array<float, spectrumSize * 2> spectrumFFTData {};
+    std::array<std::atomic<float>, spectrumBinCount> spectrumMagnitudes {};
+    int spectrumWritePosition = 0;
+    int spectrumSamplesWritten = 0;
+    int spectrumSamplesSinceUpdate = 0;
+    int spectrumHop = 1470;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> delayTimeSmoother, delayFeedbackSmoother, delayMixSmoother;
     std::array<std::atomic<float>*, 5> extraBandGainParams {};
     std::array<std::atomic<float>*, 5> extraBandFreqParams {};
