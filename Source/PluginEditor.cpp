@@ -217,7 +217,7 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
 {
  g.fillAll(bg);g.setColour(panel);g.fillRoundedRectangle(18,84,(float)getWidth()-36,44,10);g.setColour(panel);g.fillRoundedRectangle(18,142,(float)getWidth()-36,(float)getHeight()-160,14);
  g.setColour(line);g.drawRoundedRectangle(18,84,(float)getWidth()-36,44,10,1);g.drawRoundedRectangle(18,142,(float)getWidth()-36,(float)getHeight()-160,14,1);
- g.setColour(muted);g.setFont(10.0f);g.drawText("ZMB AUDIO  /  VST3",getWidth()-190,34,165,18,juce::Justification::centredRight);
+ g.setColour(muted);g.setFont(9.0f);g.drawText("ZMB AUDIO  /  VST3",getWidth()-180,69,150,12,juce::Justification::centredRight);
  // Compact input/output level bars share the same peak telemetry as the labels.
  const float meterValues[]={processor.getInputPeak(),processor.getOutputPeak()};
  const int meterX[]={getWidth()-300,getWidth()-170};
