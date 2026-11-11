@@ -285,8 +285,8 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
    pitchSamplesSinceAnalysis=0;float detected=detectPitchMidi();
    if(detected>=0.0f){
     pitchUnvoicedFrames=0;
-    // Accept a stable, octave-corrected pitch estimate before using it for
-    // scale quantisation. Large non-octave leaps need repeated evidence;
+    // Accept a stable pitch estimate before using it for scale quantisation.
+    // Large leaps, including octave changes, need repeated evidence;
     // ordinary note motion is smoothed exactly once.
     float candidate=detected;
     bool acceptCandidate=true;
