@@ -14,10 +14,14 @@ private:
     void timerCallback() override;
     void selectTab(int index);
     void applyFactoryPreset(int index);
+    void saveUserPreset();
+    void loadUserPreset();
     void updateVisibility();
     ZMBFRMAudioProcessor& processor;
     juce::Label title, subtitle, liveNote, inputMeter, outputMeter;
     juce::ComboBox presetBox;
+    juce::TextButton savePresetButton, loadPresetButton;
+    std::unique_ptr<juce::FileChooser> fileChooser;
     juce::TextButton tabs[9];
     juce::Slider sliders[40];
     juce::Label labels[40];
