@@ -13,6 +13,7 @@ ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) 
  subtitle.setText("VERSION 2.0   /   VOCAL PRODUCTION SYSTEM   /   PRECISION PITCH ENGINE", juce::dontSendNotification); subtitle.setFont(juce::Font(juce::FontOptions(10.0f))); subtitle.setColour(juce::Label::textColourId, muted); addAndMakeVisible(subtitle);
  liveNote.setText("WAITING FOR VOICE", juce::dontSendNotification); liveNote.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold))); liveNote.setColour(juce::Label::textColourId, accent); liveNote.setJustificationType(juce::Justification::centredRight); addAndMakeVisible(liveNote);
  presetBox.addItemList(juce::StringArray{"Init / Neutral","Natural Vocal","Modern Pop","Rap Vocal","Hard Tune","Wide Vocal"},1);
+ presetBox.addItem("Custom / Loaded",7);
  presetBox.setSelectedId(1,juce::dontSendNotification);
  presetBox.setTooltip("Load a factory starting point. Every control remains editable.");
  presetBox.setColour(juce::ComboBox::backgroundColourId,panel2);
@@ -21,6 +22,17 @@ ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) 
  presetBox.setColour(juce::ComboBox::arrowColourId,accent);
  presetBox.onChange=[this]{const int id=presetBox.getSelectedId();if(id>0)applyFactoryPreset(id-1);};
  addAndMakeVisible(presetBox);
+ savePresetButton.setButtonText("SAVE");loadPresetButton.setButtonText("LOAD");
+ for(auto* button:{&savePresetButton,&loadPresetButton}){
+  button->setColour(juce::TextButton::buttonColourId,panel2);
+  button->setColour(juce::TextButton::textColourOffId,accent);
+  button->setColour(juce::TextButton::textColourOnId,text);
+  addAndMakeVisible(*button);
+ }
+ savePresetButton.setTooltip("Save the current complete parameter state as a ZMBFRM preset.");
+ loadPresetButton.setTooltip("Load a previously saved ZMBFRM preset.");
+ savePresetButton.onClick=[this]{saveUserPreset();};
+ loadPresetButton.onClick=[this]{loadUserPreset();};
  inputMeter.setText("IN  -inf dB", juce::dontSendNotification);
  outputMeter.setText("OUT  -inf dB", juce::dontSendNotification);
  for (auto* meter : { &inputMeter, &outputMeter }) {
@@ -106,6 +118,54 @@ void ZMBFRMAudioProcessorEditor::applyFactoryPreset(int index)
    break;
   default: break;
  }
+}
+
+
+void ZMBFRMAudioProcessorEditor::saveUserPreset()
+{
+ auto folder=juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("ZMBFRM");
+ folder.createDirectory();
+ fileChooser=std::make_unique<juce::FileChooser>("Save ZMBFRM preset",folder,"*.zmbpreset");
+ juce::Component::SafePointer<ZMBFRMAudioProcessorEditor> safeThis(this);
+ fileChooser->launchAsync(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::canSelectFiles,
+  [safeThis](const juce::FileChooser& chooser){
+   if(safeThis==nullptr)return;
+   auto file=chooser.getResult();
+   if(file!=juce::File{}){
+    if(!file.hasFileExtension("zmbpreset"))file=file.withFileExtension(".zmbpreset");
+    if(auto xml=safeThis->processor.state.copyState().createXml()){
+     if(!xml->writeTo(file))
+      juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"ZMBFRM","Could not write the preset file.");
+     else safeThis->presetBox.setSelectedId(7,juce::dontSendNotification);
+    }
+   }
+   safeThis->fileChooser.reset();
+  });
+}
+
+void ZMBFRMAudioProcessorEditor::loadUserPreset()
+{
+ auto folder=juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("ZMBFRM");
+ folder.createDirectory();
+ fileChooser=std::make_unique<juce::FileChooser>("Load ZMBFRM preset",folder,"*.zmbpreset");
+ juce::Component::SafePointer<ZMBFRMAudioProcessorEditor> safeThis(this);
+ fileChooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles,
+  [safeThis](const juce::FileChooser& chooser){
+   if(safeThis==nullptr)return;
+   const auto file=chooser.getResult();
+   if(file!=juce::File{}){
+    if(auto xml=juce::XmlDocument::parse(file)){
+     if(xml->hasTagName(safeThis->processor.state.state.getType())){
+      const auto restored=juce::ValueTree::fromXml(*xml);
+      if(restored.isValid()){
+       safeThis->processor.state.replaceState(restored);
+       safeThis->presetBox.setSelectedId(7,juce::dontSendNotification);
+      }
+     }else juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"ZMBFRM","This file is not a valid ZMBFRM preset.");
+    }else juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"ZMBFRM","Could not read the preset file.");
+   }
+   safeThis->fileChooser.reset();
+  });
 }
 
 void ZMBFRMAudioProcessorEditor::selectTab(int index){selectedTab=juce::jlimit(0,8,index);for(int i=0;i<9;++i){tabs[i].setToggleState(i==selectedTab,juce::dontSendNotification);tabs[i].setColour(juce::TextButton::buttonColourId,i==selectedTab?juce::Colour(0xff421923):panel2);tabs[i].setColour(juce::TextButton::textColourOffId,i==selectedTab?accent:muted);}updateVisibility();repaint();}
@@ -298,7 +358,7 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
 
 void ZMBFRMAudioProcessorEditor::resized()
 {
- title.setBounds(24,10,280,38);subtitle.setBounds(26,49,500,20);presetBox.setBounds(340,14,170,26);liveNote.setBounds(540,10,getWidth()-860,24);
+ title.setBounds(24,10,280,38);subtitle.setBounds(26,49,500,20);presetBox.setBounds(330,14,160,26);savePresetButton.setBounds(500,14,54,26);loadPresetButton.setBounds(560,14,54,26);liveNote.setBounds(630,10,getWidth()-660,24);
  inputMeter.setBounds(getWidth()-300,38,120,20);outputMeter.setBounds(getWidth()-170,38,140,20);
  const int tabW=(getWidth()-44)/9;for(int i=0;i<9;++i)tabs[i].setBounds(22+i*tabW,91,tabW-4,30);
  if(selectedTab==1){keyBox.setBounds(48,472,100,26);scaleBox.setBounds(158,472,190,26);toggles[7].setBounds(690,472,220,26);const int baseY=514;juce::Slider* ss[]={&speed,&humanize,&detune};for(int i=0;i<3;++i){int x=50+i*150;tuneLabels[i].setBounds(x,baseY,136,18);ss[i]->setBounds(x+6,baseY+14,124,72);}}
