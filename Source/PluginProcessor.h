@@ -61,6 +61,7 @@ private:
     float trackedPitchMidi = -1.0f;
     float pendingPitchMidi = -1.0f;
     int pendingPitchFrames = 0;
+    int pitchUnvoicedFrames = 0;
     int trackedScaleNote = -1;
     std::atomic<float> detectedMidiNote { -1.0f };
     std::atomic<float> correctionCents { 0.0f };
