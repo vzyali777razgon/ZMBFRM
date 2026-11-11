@@ -73,7 +73,19 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  masterMixSmoother.setCurrentAndTargetValue(state.getRawParameterValue("mix")->load());
  outputGainSmoother.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(state.getRawParameterValue("out")->load()));
  juce::dsp::ProcessSpec spec{sr,(juce::uint32)blockSize,(juce::uint32)getTotalNumOutputChannels()};
- for(int ch=0;ch<2;++ch){lowFilter[ch].prepare(spec);midFilter[ch].prepare(spec);highFilter[ch].prepare(spec);lowFilter[ch].reset();midFilter[ch].reset();highFilter[ch].reset(); for(int band=0;band<5;++band){extraEQFilters[band][ch].prepare(spec);extraEQFilters[band][ch].reset();}}
+ for(int ch=0;ch<2;++ch){
+  lowFilter[ch].prepare(spec);midFilter[ch].prepare(spec);highFilter[ch].prepare(spec);
+  lowFilter[ch].reset();midFilter[ch].reset();highFilter[ch].reset();
+  // Coefficient storage is created in prepareToPlay; processBlock only
+  // updates the existing fixed-size arrays when a parameter changes.
+  if(!lowFilter[ch].coefficients) lowFilter[ch].coefficients=new juce::dsp::IIR::Coefficients<float>();
+  if(!midFilter[ch].coefficients) midFilter[ch].coefficients=new juce::dsp::IIR::Coefficients<float>();
+  if(!highFilter[ch].coefficients) highFilter[ch].coefficients=new juce::dsp::IIR::Coefficients<float>();
+  for(int band=0;band<5;++band){
+   extraEQFilters[band][ch].prepare(spec);extraEQFilters[band][ch].reset();
+   if(!extraEQFilters[band][ch].coefficients) extraEQFilters[band][ch].coefficients=new juce::dsp::IIR::Coefficients<float>();
+  }
+ }
  compressor.prepare(spec); compressor.setAttack(8.f); compressor.setRelease(100.f);
  chorus.prepare(spec); chorus.setRate(.25f); chorus.setDepth(.2f);
  reverb.prepare(spec); reverb.reset();
@@ -82,6 +94,8 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  pitchShiftBuffer.setSize(2,(int)(sr*0.065)+blockSize+1); pitchShiftBuffer.clear();
  pitchRatioBuffer.setSize(1,juce::jmax(blockSize,65536)); pitchRatioBuffer.clear(); delayWritePosition=0; pitchWritePosition=0; pitchShiftSamplesWritten=0; pitchShiftWarmupMix=0.0f;
  pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchHistorySamples=0; pitchSamplesSinceAnalysis=0; pitchAnalysisHop=juce::jlimit(256,2048,(int)std::lround(sr*0.010)); smoothedPitchRatio=1.0f; targetPitchRatio=1.0f; smoothedDetuneCents=0.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; pitchUnvoicedFrames=0; trackedScaleNote=-1;
+ lastLowGain=lastMidGain=lastHighGain=999.0f;lastLowFreq=lastMidFreq=lastHighFreq=-1.0f;lastMidQ=-1.0f;
+ for(int band=0;band<5;++band){lastExtraGain[band]=999.0f;lastExtraFreq[band]=-1.0f;lastExtraQ[band]=-1.0f;}
  detectedMidiNote.store(-1.0f); correctionCents.store(0.0f); inputPeak.store(0.0f); outputPeak.store(0.0f);
 }
 
@@ -488,18 +502,18 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   // Rebuild coefficient objects only when a control actually changes. This avoids
   // repeated shared-pointer allocations on every audio callback.
   if (lowGain!=lastLowGain || lowFreq!=lastLowFreq) {
-   auto c=juce::dsp::IIR::Coefficients<float>::makeLowShelf(sampleRateHz,lowFreq,.707f,juce::Decibels::decibelsToGain(lowGain));
-   for(int ch=0;ch<2;++ch) lowFilter[ch].coefficients=c;
+   const auto c=juce::dsp::IIR::ArrayCoefficients<float>::makeLowShelf(sampleRateHz,lowFreq,.707f,juce::Decibels::decibelsToGain(lowGain));
+   for(int ch=0;ch<2;++ch) *lowFilter[ch].coefficients=c;
    lastLowGain=lowGain; lastLowFreq=lowFreq;
   }
   if (midGain!=lastMidGain || midFreq!=lastMidFreq || midQ!=lastMidQ) {
-   auto c=juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRateHz,midFreq,midQ,juce::Decibels::decibelsToGain(midGain));
-   for(int ch=0;ch<2;++ch) midFilter[ch].coefficients=c;
+   const auto c=juce::dsp::IIR::ArrayCoefficients<float>::makePeakFilter(sampleRateHz,midFreq,midQ,juce::Decibels::decibelsToGain(midGain));
+   for(int ch=0;ch<2;++ch) *midFilter[ch].coefficients=c;
    lastMidGain=midGain; lastMidFreq=midFreq; lastMidQ=midQ;
   }
   if (highGain!=lastHighGain || highFreq!=lastHighFreq) {
-   auto c=juce::dsp::IIR::Coefficients<float>::makeHighShelf(sampleRateHz,highFreq,.707f,juce::Decibels::decibelsToGain(highGain));
-   for(int ch=0;ch<2;++ch) highFilter[ch].coefficients=c;
+   const auto c=juce::dsp::IIR::ArrayCoefficients<float>::makeHighShelf(sampleRateHz,highFreq,.707f,juce::Decibels::decibelsToGain(highGain));
+   for(int ch=0;ch<2;++ch) *highFilter[ch].coefficients=c;
    lastHighGain=highGain; lastHighFreq=highFreq;
   }
   for(int ch=0;ch<chans;++ch){auto block=juce::dsp::AudioBlock<float>(b).getSingleChannelBlock((size_t)ch);juce::dsp::ProcessContextReplacing<float> ctx(block);lowFilter[ch].process(ctx);midFilter[ch].process(ctx);highFilter[ch].process(ctx);}
@@ -509,8 +523,8 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
    const float freq=juce::jlimit(20.0f,nyquist,v(("band"+suffix+"Freq").toRawUTF8()));
    const float q=v(("band"+suffix+"Q").toRawUTF8());
    if(gain!=lastExtraGain[band] || freq!=lastExtraFreq[band] || q!=lastExtraQ[band]){
-    auto c=juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRateHz,freq,q,juce::Decibels::decibelsToGain(gain));
-    for(int ch=0;ch<2;++ch) extraEQFilters[band][ch].coefficients=c;
+    const auto c=juce::dsp::IIR::ArrayCoefficients<float>::makePeakFilter(sampleRateHz,freq,q,juce::Decibels::decibelsToGain(gain));
+    for(int ch=0;ch<2;++ch) *extraEQFilters[band][ch].coefficients=c;
     lastExtraGain[band]=gain;lastExtraFreq[band]=freq;lastExtraQ[band]=q;
    }
    for(int ch=0;ch<chans;++ch){auto block=juce::dsp::AudioBlock<float>(b).getSingleChannelBlock((size_t)ch);juce::dsp::ProcessContextReplacing<float> ctx(block);extraEQFilters[band][ch].process(ctx);}
