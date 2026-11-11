@@ -283,9 +283,12 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   if(++pitchSamplesSinceAnalysis>=512){
    pitchSamplesSinceAnalysis=0;float detected=detectPitchMidi();
    if(detected>=0.0f){
-    // Temporal note tracking: reject isolated octave flips from a strong second
-    // harmonic, but allow a genuine large melodic leap after repeated evidence.
+    // Accept a stable, octave-corrected pitch estimate before using it for
+    // scale quantisation. Large non-octave leaps need repeated evidence;
+    // ordinary note motion is smoothed exactly once.
     float candidate=detected;
+    bool acceptCandidate=true;
+
     if(trackedPitchMidi>=0.0f){
      const float jump=candidate-trackedPitchMidi;
      if(std::abs(jump)>7.0f){
@@ -293,41 +296,66 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
       const float octaveUp=candidate+12.0f;
       const float downDistance=std::abs(octaveDown-trackedPitchMidi);
       const float upDistance=std::abs(octaveUp-trackedPitchMidi);
-      if(downDistance+1.0f<std::abs(jump) && downDistance<5.0f) candidate=octaveDown;
-      else if(upDistance+1.0f<std::abs(jump) && upDistance<5.0f) candidate=octaveUp;
+
+      // If shifting by one octave restores continuity, treat it as a
+      // detector harmonic error instead of a genuine melodic leap.
+      if(downDistance<4.5f && downDistance+1.0f<std::abs(jump))
+       candidate=octaveDown;
+      else if(upDistance<4.5f && upDistance+1.0f<std::abs(jump))
+       candidate=octaveUp;
       else {
-       if(pendingPitchMidi>=0.0f && std::abs(candidate-pendingPitchMidi)<2.0f) ++pendingPitchFrames;
-       else { pendingPitchMidi=candidate; pendingPitchFrames=1; }
-       if(pendingPitchFrames<3) candidate=trackedPitchMidi;
-       else { trackedPitchMidi=candidate; pendingPitchMidi=-1.0f; pendingPitchFrames=0; }
+       if(pendingPitchMidi>=0.0f && std::abs(candidate-pendingPitchMidi)<1.5f)
+        ++pendingPitchFrames;
+       else {
+        pendingPitchMidi=candidate;
+        pendingPitchFrames=1;
+       }
+
+       if(pendingPitchFrames<3)
+        acceptCandidate=false;
+       else {
+        // Three consistent frames confirm a real leap. The pitch-ratio
+        // smoother below performs the audible glide to the new note.
+        trackedPitchMidi=candidate;
+        pendingPitchMidi=-1.0f;
+        pendingPitchFrames=0;
+       }
       }
      } else {
-      trackedPitchMidi=0.75f*trackedPitchMidi+0.25f*candidate;
-      pendingPitchMidi=-1.0f; pendingPitchFrames=0;
+      trackedPitchMidi+=0.35f*(candidate-trackedPitchMidi);
+      pendingPitchMidi=-1.0f;
+      pendingPitchFrames=0;
      }
     } else {
      trackedPitchMidi=candidate;
-     pendingPitchMidi=-1.0f; pendingPitchFrames=0;
+     pendingPitchMidi=-1.0f;
+     pendingPitchFrames=0;
     }
-    if(pendingPitchFrames==0 && candidate!=trackedPitchMidi)
-     trackedPitchMidi=0.75f*trackedPitchMidi+0.25f*candidate;
+
+    if(!acceptCandidate)
+     candidate=trackedPitchMidi;
+    else if(pendingPitchFrames==0 && trackedPitchMidi>=0.0f
+            && std::abs(candidate-trackedPitchMidi)>0.001f)
+     trackedPitchMidi+=0.35f*(candidate-trackedPitchMidi);
+
+    // All downstream decisions use the accepted tracker state, never the
+    // unverified raw detector result.
+    candidate=trackedPitchMidi;
     detectedMidiNote.store(candidate);
     int nearest=getScaleNote((int)std::lround(candidate),key,scale);
-    // Add a small pitch-boundary hysteresis so vibrato near a scale-note
-    // midpoint does not make the target alternate between two notes.
+
+    // A quarter-semitone boundary margin prevents vibrato from toggling
+    // the quantised destination between adjacent scale notes.
     if(trackedScaleNote>=0 && getScaleNote(trackedScaleNote,key,scale)==trackedScaleNote){
      if(nearest!=trackedScaleNote
-        && std::abs(candidate-(float)nearest)+0.12f>=std::abs(candidate-(float)trackedScaleNote))
+        && std::abs(candidate-(float)nearest)+0.25f>=std::abs(candidate-(float)trackedScaleNote))
       nearest=trackedScaleNote;
     }
     trackedScaleNote=nearest;
+
     const float cents=((float)nearest-candidate)*100.0f+detune;
-    // Humanize is time-domain behaviour: retain the full musical target,
-    // but ease into it more gently so note transitions and vibrato feel less
-    // mechanically snapped. Speed remains the primary retune-time control.
-    const float correction=cents;
-    correctionCents.store(correction);
-    const float target=std::pow(2.0f,correction/1200.0f);
+    correctionCents.store(cents);
+    const float target=std::pow(2.0f,cents/1200.0f);
     const float speedResponse=juce::jlimit(0.02f,0.95f,0.02f+speed*0.0092f);
     const float humanizeScale=1.0f-0.85f*(human/100.0f);
     const float smoothing=juce::jlimit(0.003f,0.95f,speedResponse*humanizeScale);
