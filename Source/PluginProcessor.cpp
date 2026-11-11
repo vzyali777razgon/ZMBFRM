@@ -342,7 +342,8 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   }
   blockInputPeak = juce::jmax(blockInputPeak, dryBuffer.getMagnitude(ch, 0, n));
  }
- inputPeak.store(blockInputPeak);
+ const float meterDecay=std::exp(-(float)n/((float)sampleRateHz*0.35f));
+ inputPeak.store(juce::jmax(blockInputPeak,inputPeak.load(std::memory_order_relaxed)*meterDecay),std::memory_order_relaxed);
  auto v=[this](const char* id){return state.getRawParameterValue(id)->load();};
  const bool tune=v("tuneOn")>.5f;
  const int key=(int)v("key"), scale=(int)v("scale");
@@ -636,7 +637,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
  float blockOutputPeak = 0.0f;
  for (int ch=0; ch<processChannels; ++ch)
   blockOutputPeak = juce::jmax(blockOutputPeak, b.getMagnitude(ch, 0, n));
- outputPeak.store(blockOutputPeak);
+ outputPeak.store(juce::jmax(blockOutputPeak,outputPeak.load(std::memory_order_relaxed)*meterDecay),std::memory_order_relaxed);
 }
 juce::AudioProcessorEditor* ZMBFRMAudioProcessor::createEditor(){return new ZMBFRMAudioProcessorEditor(*this);}
 void ZMBFRMAudioProcessor::getStateInformation(juce::MemoryBlock& d)
