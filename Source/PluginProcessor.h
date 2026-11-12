@@ -1,5 +1,6 @@
 #pragma once
 #include <JuceHeader.h>
+#include <signalsmith-stretch/signalsmith-stretch.h>
 #include <array>
 #include <atomic>
 #include <cmath>
@@ -94,14 +95,15 @@ private:
     std::array<std::atomic<float>*, 5> extraBandFreqParams {};
     std::array<std::atomic<float>*, 5> extraBandQParams {};
     juce::AudioBuffer<float> delayBuffer;
-    juce::AudioBuffer<float> pitchShiftBuffer;
+    juce::AudioBuffer<float> pitchOutputBuffer;
+    juce::AudioBuffer<float> dryLatencyBuffer;
+    signalsmith::stretch::SignalsmithStretch<float> vocalPitchShifter;
     juce::AudioBuffer<float> pitchRatioBuffer;
     juce::AudioBuffer<float> dryBuffer;
     int delayWritePosition = 0;
     bool delayWasEnabled = false;
-    int pitchWritePosition = 0;
-    int pitchShiftSamplesWritten = 0;
-    float pitchShiftWarmupMix = 0.0f;
+    int dryLatencyWritePosition = 0;
+    int reportedLatencySamples = 0;
     double sampleRateHz = 44100.0;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> masterMixSmoother;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> outputGainSmoother;
@@ -117,7 +119,6 @@ private:
     float smoothedPitchRatio = 1.0f;
     float targetPitchRatio = 1.0f;
     float smoothedDetuneCents = 0.0f;
-    float pitchPhase = 0.0f;
     float trackedPitchMidi = -1.0f;
     float pendingPitchMidi = -1.0f;
     int pendingPitchFrames = 0;
@@ -133,6 +134,5 @@ private:
 
     float detectPitchMidi() const noexcept;
     int getScaleNote(int midiNote, int key, int scale) const noexcept;
-    float pitchShiftSample(int channel, float input, float ratio) noexcept;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ZMBFRMAudioProcessor)
 };
