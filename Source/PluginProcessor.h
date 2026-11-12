@@ -27,7 +27,7 @@ public:
     double getTailLengthSeconds() const override
     {
         double tail = (state.getRawParameterValue("reverbOn")->load() > 0.5f
-                       && state.getRawParameterValue("reverb")->load() > 0.001f) ? 3.0 : 0.0;
+                       && state.getRawParameterValue("reverbMix")->load() > 0.001f) ? 3.0 : 0.0;
         if (state.getRawParameterValue("delayOn")->load() > 0.5f
             && state.getRawParameterValue("delayMix")->load() > 0.001f)
         {
@@ -98,6 +98,7 @@ private:
     juce::AudioBuffer<float> pitchRatioBuffer;
     juce::AudioBuffer<float> dryBuffer;
     int delayWritePosition = 0;
+    bool delayWasEnabled = false;
     int pitchWritePosition = 0;
     int pitchShiftSamplesWritten = 0;
     float pitchShiftWarmupMix = 0.0f;
