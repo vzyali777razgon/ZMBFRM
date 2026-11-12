@@ -360,7 +360,11 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
     processor.state.getRawParameterValue("band4Gain")->load(),processor.state.getRawParameterValue("band5Gain")->load(),
     processor.state.getRawParameterValue("band6Gain")->load(),processor.state.getRawParameterValue("band7Gain")->load(),processor.state.getRawParameterValue("band8Gain")->load()};
    for(int i=0;i<8;++i){float nx=std::log(juce::jlimit(20.0f,20000.0f,freqs[i])/20.0f)/std::log(1000.0f);float x=graph.getX()+10.0f+nx*(graph.getWidth()-20.0f);float y=graph.getCentreY()-gains[i]*(graph.getHeight()-18.0f)/26.0f;g.setColour(panel);g.fillEllipse(x-6,y-6,12,12);g.setColour(i<3?accent:juce::Colour(0xfff2b66d));g.drawEllipse(x-6,y-6,12,12,2.0f);}
-   g.setColour(muted);g.setFont(9.0f);g.drawText("20 Hz",graph.getX()+8,graph.getBottom()-17,50,12,juce::Justification::left);g.drawText("1 kHz",graph.getCentreX()-25,graph.getBottom()-17,50,12,juce::Justification::centred);g.drawText("20 kHz",graph.getRight()-58,graph.getBottom()-17,50,12,juce::Justification::right);
+   g.setColour(muted);g.setFont(9.0f);
+   const int axisY=(int)graph.getBottom()-17;
+   g.drawText("20 Hz",(int)graph.getX()+8,axisY,50,12,juce::Justification::left);
+   g.drawText("1 kHz",(int)graph.getCentreX()-25,axisY,50,12,juce::Justification::centred);
+   g.drawText("20 kHz",(int)graph.getRight()-58,axisY,50,12,juce::Justification::right);
   }
   if(selectedTab==4){g.setColour(panel2);g.fillRoundedRectangle(36,220,getWidth()-72,100,10);g.setColour(accent);g.drawText("SIBILANCE CONTROL  /  HIGH-FREQUENCY DYNAMIC REDUCTION",52,244,getWidth()-104,24,juce::Justification::left);}
  }
@@ -384,7 +388,7 @@ void ZMBFRMAudioProcessorEditor::resized()
     sliders[i].setBounds(x+2,y+18,cell-7,112);
    }
   } else if(selectedTab==2) {
-   const int ids[]={3,4,17,18};const int cell=155;
+   const int ids[]={3,4,17,18};
    for(int j=0;j<4;++j){int i=ids[j],x=50+j*175;labels[i].setBounds(x,360,160,20);sliders[i].setBounds(x+4,380,145,140);}
   } else {
    visibleIndex=0;
