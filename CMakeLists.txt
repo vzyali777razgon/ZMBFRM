@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.24)
 project(ZMBFRM VERSION 2.0.0)
 
 include(FetchContent)
@@ -8,6 +8,12 @@ FetchContent_Declare(JUCE
     GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(JUCE)
+
+FetchContent_Declare(signalsmith-stretch
+    GIT_REPOSITORY https://github.com/Signalsmith-Audio/signalsmith-stretch.git
+    GIT_TAG 88061fd4eda56a2353c5d65c74aa3f4ccf76f9da
+)
+FetchContent_MakeAvailable(signalsmith-stretch)
 
 juce_add_plugin(ZMBFRM
     COMPANY_NAME "ZMB"
@@ -38,6 +44,7 @@ target_link_libraries(ZMBFRM
     PRIVATE
         juce::juce_audio_utils
         juce::juce_dsp
+        signalsmith-stretch
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags
