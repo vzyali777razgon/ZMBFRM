@@ -70,15 +70,15 @@ void ZMBFRMAudioProcessorEditor::applyFactoryPreset(int index)
  // Start each preset from a known baseline so no hidden parameter is
  // accidentally inherited from the previously selected sound.
  const std::pair<const char*,float> defaults[]={
-  {"eqOn",1},{"low",0},{"mid",0},{"high",0},{"lowFreq",160},{"midFreq",1000},{"midQ",0.8f},{"highFreq",6500},
-  {"band4Gain",0},{"band4Freq",250},{"band4Q",1},{"band5Gain",0},{"band5Freq",500},{"band5Q",1},
-  {"band6Gain",0},{"band6Freq",1000},{"band6Q",1},{"band7Gain",0},{"band7Freq",2000},{"band7Q",1},
-  {"band8Gain",0},{"band8Freq",4000},{"band8Q",1},
-  {"compOn",1},{"threshold",-18},{"ratio",3},{"compAttack",8},{"compRelease",100},
-  {"satOn",1},{"sat",0.15f},{"satMix",1},{"deesserOn",1},{"deessAmount",0.35f},{"deessFreq",6500},{"deessThreshold",0.035f},
-  {"reverbOn",1},{"reverb",0.15f},{"reverbDamping",0.45f},{"reverbMix",0.15f},{"reverbWidth",0.9f},{"delayOn",0},{"delay",0.2f},{"delayFeedback",0.32f},{"delayMix",0.35f},
-  {"chorusOn",0},{"chorus",0.2f},{"chorusRate",0.25f},{"chorusMix",0.5f},{"chorusFeedback",0},{"chorusDelay",7},{"mix",1},{"out",0},
-  {"tuneOn",1},{"key",0},{"scale",2},{"speed",50},{"humanize",20},{"detune",0}
+  {"eqOn",1.0f},{"low",0.0f},{"mid",0.0f},{"high",0.0f},{"lowFreq",160.0f},{"midFreq",1000.0f},{"midQ",0.8f},{"highFreq",6500.0f},
+  {"band4Gain",0.0f},{"band4Freq",250.0f},{"band4Q",1.0f},{"band5Gain",0.0f},{"band5Freq",500.0f},{"band5Q",1.0f},
+  {"band6Gain",0.0f},{"band6Freq",1000.0f},{"band6Q",1.0f},{"band7Gain",0.0f},{"band7Freq",2000.0f},{"band7Q",1.0f},
+  {"band8Gain",0.0f},{"band8Freq",4000.0f},{"band8Q",1.0f},
+  {"compOn",1.0f},{"threshold",-18.0f},{"ratio",3.0f},{"compAttack",8.0f},{"compRelease",100.0f},
+  {"satOn",1.0f},{"sat",0.15f},{"satMix",1.0f},{"deesserOn",1.0f},{"deessAmount",0.35f},{"deessFreq",6500.0f},{"deessThreshold",0.035f},
+  {"reverbOn",1.0f},{"reverb",0.15f},{"reverbDamping",0.45f},{"reverbMix",0.15f},{"reverbWidth",0.9f},{"delayOn",0.0f},{"delay",0.2f},{"delayFeedback",0.32f},{"delayMix",0.35f},
+  {"chorusOn",0.0f},{"chorus",0.2f},{"chorusRate",0.25f},{"chorusMix",0.5f},{"chorusFeedback",0.0f},{"chorusDelay",7.0f},{"mix",1.0f},{"out",0.0f},
+  {"tuneOn",1.0f},{"key",0.0f},{"scale",2.0f},{"speed",50.0f},{"humanize",20.0f},{"detune",0.0f}
  };
  for(const auto& item:defaults) set(item.first,item.second);
 
