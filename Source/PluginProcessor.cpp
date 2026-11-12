@@ -72,13 +72,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout ZMBFRMAudioProcessor::create
  return p;
 }
 
-void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
+void ZMBFRMAudioProcessor::prepareToPlay(double sr,int maximumExpectedSamplesPerBlock)
 {
  // Hosts should provide valid values, but guard the DSP setup against
  // malformed/offline configurations before calculating buffer sizes.
  if (!std::isfinite(sr) || sr < 8000.0)
   sr = 44100.0;
- blockSize = juce::jmax(1, blockSize);
+ maximumExpectedSamplesPerBlock = juce::jmax(1, maximumExpectedSamplesPerBlock);
  sampleRateHz=sr;
  spectrumHistory.fill(0.0f);spectrumFFTData.fill(0.0f);
  spectrumWritePosition=0;spectrumSamplesWritten=0;spectrumSamplesSinceUpdate=0;
@@ -97,7 +97,7 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  delayMixSmoother.setCurrentAndTargetValue(state.getRawParameterValue("delayMix")->load());
  masterMixSmoother.setCurrentAndTargetValue(state.getRawParameterValue("mix")->load());
  outputGainSmoother.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(state.getRawParameterValue("out")->load()));
- juce::dsp::ProcessSpec spec{sr,(juce::uint32)blockSize,(juce::uint32)getTotalNumOutputChannels()};
+ juce::dsp::ProcessSpec spec{sr,(juce::uint32)maximumExpectedSamplesPerBlock,(juce::uint32)getTotalNumOutputChannels()};
  for(int ch=0;ch<2;++ch){
   lowFilter[ch].prepare(spec);midFilter[ch].prepare(spec);highFilter[ch].prepare(spec);
   lowFilter[ch].reset();midFilter[ch].reset();highFilter[ch].reset();
@@ -114,10 +114,10 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  compressor.prepare(spec); compressor.setAttack(8.f); compressor.setRelease(100.f);
  chorus.prepare(spec); chorus.setRate(.25f); chorus.setDepth(.2f);
  reverb.prepare(spec); reverb.reset();
- delayBuffer.setSize(2,(int)(sr*2.0)+blockSize+1); delayBuffer.clear(); delayWasEnabled=false;
- dryBuffer.setSize(2,juce::jmax(blockSize,65536)); dryBuffer.clear();
- pitchShiftBuffer.setSize(2,(int)(sr*0.065)+blockSize+1); pitchShiftBuffer.clear();
- pitchRatioBuffer.setSize(1,juce::jmax(blockSize,65536)); pitchRatioBuffer.clear(); delayWritePosition=0; pitchWritePosition=0; pitchShiftSamplesWritten=0; pitchShiftWarmupMix=0.0f;
+ delayBuffer.setSize(2,(int)(sr*2.0)+maximumExpectedSamplesPerBlock+1); delayBuffer.clear(); delayWasEnabled=false;
+ dryBuffer.setSize(2,juce::jmax(maximumExpectedSamplesPerBlock,65536)); dryBuffer.clear();
+ pitchShiftBuffer.setSize(2,(int)(sr*0.065)+maximumExpectedSamplesPerBlock+1); pitchShiftBuffer.clear();
+ pitchRatioBuffer.setSize(1,juce::jmax(maximumExpectedSamplesPerBlock,65536)); pitchRatioBuffer.clear(); delayWritePosition=0; pitchWritePosition=0; pitchShiftSamplesWritten=0; pitchShiftWarmupMix=0.0f;
  pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchHistorySamples=0; pitchSamplesSinceAnalysis=0; pitchAnalysisHop=juce::jlimit(256,2048,(int)std::lround(sr*0.010)); smoothedPitchRatio=1.0f; targetPitchRatio=1.0f; smoothedDetuneCents=0.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; pitchUnvoicedFrames=0; trackedScaleNote=-1;
  lastLowGain=lastMidGain=lastHighGain=999.0f;lastLowFreq=lastMidFreq=lastHighFreq=-1.0f;lastMidQ=-1.0f;
  for(int band=0;band<5;++band){lastExtraGain[band]=999.0f;lastExtraFreq[band]=-1.0f;lastExtraQ[band]=-1.0f;}
