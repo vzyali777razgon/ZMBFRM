@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.1 — Reliability and UI Fixes
+## 2.0.0 — Reliability and UI Fixes
 - Fixed the tuner history writer so voiced pitch frames are recorded and the live pitch trace actually renders.
 - Reset delay history when the delay is bypassed to prevent stale repeats from returning when re-enabled.
 - Report reverb tail only when the reverb wet mix is audible.
