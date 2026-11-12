@@ -210,8 +210,11 @@ void ZMBFRMAudioProcessorEditor::timerCallback()
  outputMeter.setText("OUT  "+dbText(processor.getOutputPeak())+" dB",juce::dontSendNotification);
  inputMeter.setColour(juce::Label::textColourId,processor.getInputPeak()>=1.0f?juce::Colours::red:accent);
  outputMeter.setColour(juce::Label::textColourId,processor.getOutputPeak()>=1.0f?juce::Colours::red:accent);
+ const char* moduleNames[]={"EQ","COMPRESSOR","SATURATION","DE-ESSER","REVERB","DELAY","CHORUS","AUTO-TUNE"};
  for(int i=0;i<8;++i){
   const bool enabled=toggles[i].getToggleState();
+  const juce::String status=juce::String(moduleNames[i])+(enabled?"  /  ON":"  /  BYPASSED");
+  if(toggles[i].getButtonText()!=status)toggles[i].setButtonText(status);
   toggles[i].setColour(juce::ToggleButton::textColourId,enabled?accent:text);
   toggles[i].setColour(juce::ToggleButton::tickColourId,enabled?accent:muted);
  }
