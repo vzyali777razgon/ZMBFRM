@@ -7,7 +7,7 @@ concurrency:
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master, zmbfrm-2.0-dev ]
+    branches: [ main, master, zmbfrm-2.0-dev, zmbfrm-2.1-rebuild ]
 
 permissions:
   contents: read
@@ -35,6 +35,6 @@ jobs:
       - name: Upload VST3 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ZMBFRM-2.0-dev-Windows-x64
+          name: ZMBFRM-2.1-rebuild-Windows-x64
           path: ZMBFRM-VST3-Windows.zip
           if-no-files-found: error
