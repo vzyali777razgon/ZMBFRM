@@ -54,7 +54,7 @@ ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) 
  comboAttachments[0]=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(processor.state,"key",keyBox);comboAttachments[1]=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(processor.state,"scale",scaleBox);
  juce::Slider* tuneSliders[]={&speed,&humanize,&detune};const char* tuneIds[]={"speed","humanize","detune"};const char* tuneNames[]={"RETUNE SPEED","HUMANIZE","DETUNE / CENTS"};
  for(int i=0;i<3;++i){tuneSliders[i]->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);tuneSliders[i]->setTextBoxStyle(juce::Slider::TextBoxBelow,false,74,20);tuneSliders[i]->setColour(juce::Slider::rotarySliderFillColourId,accent);tuneSliders[i]->setColour(juce::Slider::rotarySliderOutlineColourId,line);tuneSliders[i]->setColour(juce::Slider::thumbColourId,text);tuneSliders[i]->setColour(juce::Slider::textBoxTextColourId,text);tuneSliders[i]->setColour(juce::Slider::textBoxBackgroundColourId,panel2);addAndMakeVisible(*tuneSliders[i]);tuneLabels[i].setText(tuneNames[i],juce::dontSendNotification);tuneLabels[i].setJustificationType(juce::Justification::centred);tuneLabels[i].setColour(juce::Label::textColourId,muted);addAndMakeVisible(tuneLabels[i]);tuneAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state,tuneIds[i],*tuneSliders[i]);}
- selectTab(1); startTimerHz(15);
+ selectTab(1); resized(); startTimerHz(15);
 }
 
 
@@ -170,7 +170,7 @@ void ZMBFRMAudioProcessorEditor::loadUserPreset()
   });
 }
 
-void ZMBFRMAudioProcessorEditor::selectTab(int index){selectedEQNode=-1;selectedTab=juce::jlimit(0,8,index);for(int i=0;i<9;++i){tabs[i].setToggleState(i==selectedTab,juce::dontSendNotification);tabs[i].setColour(juce::TextButton::buttonColourId,i==selectedTab?juce::Colour(0xff421923):panel2);tabs[i].setColour(juce::TextButton::textColourOffId,i==selectedTab?accent:muted);}updateVisibility();repaint();}
+void ZMBFRMAudioProcessorEditor::selectTab(int index){selectedEQNode=-1;selectedTab=juce::jlimit(0,8,index);for(int i=0;i<9;++i){tabs[i].setToggleState(i==selectedTab,juce::dontSendNotification);tabs[i].setColour(juce::TextButton::buttonColourId,i==selectedTab?juce::Colour(0xff421923):panel2);tabs[i].setColour(juce::TextButton::textColourOffId,i==selectedTab?accent:muted);}updateVisibility();resized();repaint();}
 void ZMBFRMAudioProcessorEditor::updateVisibility(){
  const bool tune=selectedTab==1;
  for(auto& s:sliders)s.setVisible(false); for(auto& l:labels)l.setVisible(false); for(auto& t:toggles)t.setVisible(false);
@@ -210,6 +210,11 @@ void ZMBFRMAudioProcessorEditor::timerCallback()
  outputMeter.setText("OUT  "+dbText(processor.getOutputPeak())+" dB",juce::dontSendNotification);
  inputMeter.setColour(juce::Label::textColourId,processor.getInputPeak()>=1.0f?juce::Colours::red:accent);
  outputMeter.setColour(juce::Label::textColourId,processor.getOutputPeak()>=1.0f?juce::Colours::red:accent);
+ for(int i=0;i<8;++i){
+  const bool enabled=toggles[i].getToggleState();
+  toggles[i].setColour(juce::ToggleButton::textColourId,enabled?accent:text);
+  toggles[i].setColour(juce::ToggleButton::tickColourId,enabled?accent:muted);
+ }
  repaint();
 }
 
