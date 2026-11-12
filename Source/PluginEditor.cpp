@@ -366,7 +366,7 @@ void ZMBFRMAudioProcessorEditor::paint(juce::Graphics& g)
    g.drawText("1 kHz",(int)graph.getCentreX()-25,axisY,50,12,juce::Justification::centred);
    g.drawText("20 kHz",(int)graph.getRight()-58,axisY,50,12,juce::Justification::right);
   }
-  if(selectedTab==4){g.setColour(panel2);g.fillRoundedRectangle(36,220,getWidth()-72,100,10);g.setColour(accent);g.drawText("SIBILANCE CONTROL  /  HIGH-FREQUENCY DYNAMIC REDUCTION",52,244,getWidth()-104,24,juce::Justification::left);}
+  if(selectedTab==4){g.setColour(panel2);g.fillRoundedRectangle(36.0f,220.0f,(float)getWidth()-72.0f,100.0f,10.0f);g.setColour(accent);g.drawText("SIBILANCE CONTROL  /  HIGH-FREQUENCY DYNAMIC REDUCTION",52,244,getWidth()-104,24,juce::Justification::left);}
  }
 }
 
