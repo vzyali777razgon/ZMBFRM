@@ -1,9 +1,54 @@
 #include "PluginEditor.h"
 #include <utility>
+#include <cmath>
 
 namespace {
 const juce::Colour bg(0xff08090d), panel(0xff11131a), panel2(0xff191c25), line(0xff303541), text(0xfff4f4f6), muted(0xff9297a3), accent(0xffff3048);
 const juce::StringArray tabNames { "ZMBEQ", "ZMBTUNE", "ZMBCOMP", "ZMBSATURATION", "ZMBDEESSER", "ZMBREVERB", "ZMBDELAY", "ZMBCHORUS", "ZMBMASTER" };
+}
+
+void ZMBFRMLookAndFeel::drawRotarySlider(juce::Graphics& g,int x,int y,int w,int h,float pos,float start,float end,juce::Slider& slider)
+{
+ const float d=juce::jmin((float)w-12.0f,(float)h-28.0f),r=juce::jmax(12.0f,d*0.5f),cx=x+w*0.5f,cy=y+r+5.0f,a=start+pos*(end-start);
+ const auto active=slider.isEnabled()?juce::Colour(0xffff3048):juce::Colour(0xff555b66);
+ g.setColour(juce::Colour(0x55000000));g.fillEllipse(cx-r-1,cy-r+2,r*2+2,r*2+2);
+ g.setColour(juce::Colour(0xff39404d));g.fillEllipse(cx-r,cy-r,r*2,r*2);
+ g.setColour(juce::Colour(0xff20242e));g.fillEllipse(cx-r+2,cy-r+2,r*2-4,r*2-4);
+ juce::Path track;track.addCentredArc(cx,cy,r-4,r-4,0,start,end,true);
+ g.setColour(juce::Colour(0xff343b47));g.strokePath(track,juce::PathStrokeType(3.0f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));
+ juce::Path value;value.addCentredArc(cx,cy,r-4,r-4,0,start,a,true);
+ g.setColour(active);g.strokePath(value,juce::PathStrokeType(3.5f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));
+ const float len=r*0.62f;g.setColour(juce::Colour(0xfff5f6f8));
+ g.drawLine(cx,cy,cx+std::cos(a-juce::MathConstants<float>::halfPi)*len,cy+std::sin(a-juce::MathConstants<float>::halfPi)*len,2.2f);
+ g.setColour(active);g.fillEllipse(cx-3,cy-3,6,6);
+}
+void ZMBFRMLookAndFeel::drawButtonBackground(juce::Graphics& g,juce::Button& b,const juce::Colour&,bool hover,bool down)
+{
+ auto r=b.getLocalBounds().toFloat().reduced(0.8f);auto fill=b.getToggleState()?juce::Colour(0xff3a1720):juce::Colour(0xff191c25);
+ if(down)fill=fill.brighter(0.16f);else if(hover)fill=fill.brighter(0.08f);
+ g.setColour(juce::Colour(0xff343b47));g.fillRoundedRectangle(r,7);
+ g.setColour(fill);g.fillRoundedRectangle(r.reduced(1),6);
+ if(b.getToggleState()){g.setColour(juce::Colour(0xffff3048));g.fillRoundedRectangle(r.removeFromLeft(3),1.5f);}
+}
+void ZMBFRMLookAndFeel::drawToggleButton(juce::Graphics& g,juce::ToggleButton& b,bool hover,bool down)
+{
+ auto r=b.getLocalBounds().toFloat().reduced(1);const float h=juce::jmin(18.0f,r.getHeight()-4);
+ auto sw=juce::Rectangle<float>(r.getX()+2,r.getCentreY()-h*0.5f,34,h);const bool on=b.getToggleState();
+ g.setColour(on?juce::Colour(0xff5a202c):juce::Colour(0xff252a34));g.fillRoundedRectangle(sw,h*0.5f);
+ g.setColour(on?juce::Colour(0xffff4058):juce::Colour(0xff8b929f));
+ g.fillEllipse(on?sw.getRight()-h:sw.getX(),sw.getY(),h,h);
+ g.setColour(b.isEnabled()?juce::Colour(0xffe7e9ee):juce::Colour(0xff707783));
+ g.setFont(juce::Font(juce::FontOptions(11.0f,juce::Font::bold)));
+ g.drawText(b.getButtonText(),sw.getRight()+9,r.getY(),r.getRight()-sw.getRight()-9,r.getHeight(),juce::Justification::centredLeft,true);
+ if(hover||down){g.setColour(juce::Colour(0x22ffffff));g.drawRoundedRectangle(r,5,1);}
+}
+void ZMBFRMLookAndFeel::drawComboBox(juce::Graphics& g,int w,int h,bool down,int,int,int,int,juce::ComboBox&)
+{
+ auto r=juce::Rectangle<float>(0.5f,0.5f,(float)w-1,(float)h-1);
+ g.setColour(juce::Colour(0xff343b47));g.fillRoundedRectangle(r,6);
+ g.setColour(down?juce::Colour(0xff292e39):juce::Colour(0xff191c25));g.fillRoundedRectangle(r.reduced(1),5);
+ juce::Path a;const float x=w-17.0f,y=h*0.5f;a.startNewSubPath(x-3.5f,y-1.5f);a.lineTo(x,y+2.5f);a.lineTo(x+3.5f,y-1.5f);
+ g.setColour(juce::Colour(0xffff4058));g.strokePath(a,juce::PathStrokeType(1.8f,juce::PathStrokeType::curved,juce::PathStrokeType::rounded));
 }
 
 ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) : AudioProcessorEditor(&p), processor(p)
@@ -12,6 +57,7 @@ ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) 
  title.setText("ZMBFRM", juce::dontSendNotification); title.setFont(juce::Font(juce::FontOptions(28.0f, juce::Font::bold))); title.setColour(juce::Label::textColourId, text); addAndMakeVisible(title);
  subtitle.setText("VERSION 2.0   /   VOCAL PRODUCTION SYSTEM   /   PRECISION PITCH ENGINE", juce::dontSendNotification); subtitle.setFont(juce::Font(juce::FontOptions(10.0f))); subtitle.setColour(juce::Label::textColourId, muted); addAndMakeVisible(subtitle);
  liveNote.setText("WAITING FOR VOICE", juce::dontSendNotification); liveNote.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold))); liveNote.setColour(juce::Label::textColourId, accent); liveNote.setJustificationType(juce::Justification::centredRight); addAndMakeVisible(liveNote);
+ presetBox.setLookAndFeel(&customLookAndFeel);
  presetBox.addItemList(juce::StringArray{"Init / Neutral","Natural Vocal","Modern Pop","Rap Vocal","Hard Tune","Wide Vocal"},1);
  presetBox.addItem("Custom / Loaded",7);
  presetBox.setSelectedId(1,juce::dontSendNotification);
@@ -24,6 +70,7 @@ ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) 
  addAndMakeVisible(presetBox);
  savePresetButton.setButtonText("SAVE");loadPresetButton.setButtonText("LOAD");
  for(auto* button:{&savePresetButton,&loadPresetButton}){
+  button->setLookAndFeel(&customLookAndFeel);
   button->setColour(juce::TextButton::buttonColourId,panel2);
   button->setColour(juce::TextButton::textColourOffId,accent);
   button->setColour(juce::TextButton::textColourOnId,text);
@@ -41,19 +88,19 @@ ZMBFRMAudioProcessorEditor::ZMBFRMAudioProcessorEditor(ZMBFRMAudioProcessor& p) 
   meter->setJustificationType(juce::Justification::centredRight);
   addAndMakeVisible(*meter);
  }
- for (int i=0;i<9;++i) { tabs[i].setButtonText(tabNames[i]); tabs[i].setClickingTogglesState(false); tabs[i].setColour(juce::TextButton::buttonColourId, panel2); tabs[i].setColour(juce::TextButton::textColourOffId, muted); tabs[i].setColour(juce::TextButton::textColourOnId, accent); tabs[i].onClick=[this,i]{selectTab(i);}; addAndMakeVisible(tabs[i]); }
+ for (int i=0;i<9;++i) { tabs[i].setLookAndFeel(&customLookAndFeel); tabs[i].setButtonText(tabNames[i]); tabs[i].setClickingTogglesState(false); tabs[i].setColour(juce::TextButton::buttonColourId, panel2); tabs[i].setColour(juce::TextButton::textColourOffId, muted); tabs[i].setColour(juce::TextButton::textColourOnId, accent); tabs[i].onClick=[this,i]{selectTab(i);}; addAndMakeVisible(tabs[i]); }
  const char* ids[]={"low","mid","high","threshold","ratio","sat","deessAmount","deessFreq","reverb","delay","chorus","mix","out","lowFreq","midFreq","midQ","highFreq","compAttack","compRelease","satMix","reverbDamping","delayFeedback","delayMix","chorusRate","deessThreshold","band4Gain","band4Freq","band4Q","band5Gain","band5Freq","band5Q","band6Gain","band6Freq","band6Q","band7Gain","band7Freq","band7Q","band8Gain","band8Freq","band8Q","chorusMix","chorusFeedback","chorusDelay","reverbMix","reverbWidth"};
  const char* names[]={"LOW GAIN","MID GAIN","HIGH GAIN","THRESHOLD","RATIO","DRIVE","DE-ESS AMOUNT","DE-ESS FREQ","ROOM","DELAY TIME","CHORUS DEPTH","WET / DRY","OUTPUT","LOW FREQ","MID FREQ","MID Q","HIGH FREQ","ATTACK","RELEASE","SAT MIX","REVERB DAMPING","DELAY FEEDBACK","DELAY MIX","CHORUS RATE","DE-ESS THRESHOLD","BAND 4 GAIN","BAND 4 FREQ","BAND 4 Q","BAND 5 GAIN","BAND 5 FREQ","BAND 5 Q","BAND 6 GAIN","BAND 6 FREQ","BAND 6 Q","BAND 7 GAIN","BAND 7 FREQ","BAND 7 Q","BAND 8 GAIN","BAND 8 FREQ","BAND 8 Q","CHORUS MIX","CHORUS FEEDBACK","CHORUS DELAY","REVERB MIX","REVERB WIDTH"};
- for(int i=0;i<45;++i){ sliders[i].setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag); sliders[i].setTextBoxStyle(juce::Slider::TextBoxBelow,false,68,20); sliders[i].setColour(juce::Slider::rotarySliderFillColourId,accent); sliders[i].setColour(juce::Slider::rotarySliderOutlineColourId,line); sliders[i].setColour(juce::Slider::thumbColourId,text); sliders[i].setColour(juce::Slider::textBoxTextColourId,text); sliders[i].setColour(juce::Slider::textBoxBackgroundColourId,panel2); addAndMakeVisible(sliders[i]); sliders[i].setTooltip(juce::String(names[i]) + " — double-click to reset"); labels[i].setText(names[i],juce::dontSendNotification); labels[i].setJustificationType(juce::Justification::centred); labels[i].setColour(juce::Label::textColourId,muted); addAndMakeVisible(labels[i]); sliderAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state,ids[i],sliders[i]); }
+ for(int i=0;i<45;++i){ sliders[i].setLookAndFeel(&customLookAndFeel); sliders[i].setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag); sliders[i].setTextBoxStyle(juce::Slider::TextBoxBelow,false,68,20); sliders[i].setColour(juce::Slider::rotarySliderFillColourId,accent); sliders[i].setColour(juce::Slider::rotarySliderOutlineColourId,line); sliders[i].setColour(juce::Slider::thumbColourId,text); sliders[i].setColour(juce::Slider::textBoxTextColourId,text); sliders[i].setColour(juce::Slider::textBoxBackgroundColourId,panel2); addAndMakeVisible(sliders[i]); sliders[i].setTooltip(juce::String(names[i]) + " — double-click to reset"); labels[i].setText(names[i],juce::dontSendNotification); labels[i].setJustificationType(juce::Justification::centred); labels[i].setColour(juce::Label::textColourId,muted); addAndMakeVisible(labels[i]); sliderAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state,ids[i],sliders[i]); }
  const char* bids[]={"eqOn","compOn","satOn","deesserOn","reverbOn","delayOn","chorusOn","tuneOn"};
  const char* bnames[]={"EQ ACTIVE","COMP ACTIVE","SATURATION","DE-ESSER ACTIVE","REVERB ACTIVE","DELAY ACTIVE","CHORUS ACTIVE","ZMBTUNE ACTIVE"};
- for(int i=0;i<8;++i){toggles[i].setButtonText(bnames[i]);toggles[i].setTooltip("Enable or bypass this processing module");toggles[i].setColour(juce::ToggleButton::textColourId,text);toggles[i].setColour(juce::ToggleButton::tickColourId,accent);addAndMakeVisible(toggles[i]);buttonAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.state,bids[i],toggles[i]);}
+ for(int i=0;i<8;++i){toggles[i].setLookAndFeel(&customLookAndFeel);toggles[i].setButtonText(bnames[i]);toggles[i].setTooltip("Enable or bypass this processing module");toggles[i].setColour(juce::ToggleButton::textColourId,text);toggles[i].setColour(juce::ToggleButton::tickColourId,accent);addAndMakeVisible(toggles[i]);buttonAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(processor.state,bids[i],toggles[i]);}
  keyBox.addItemList(juce::StringArray{"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"},1);
  scaleBox.addItemList(juce::StringArray{"Chromatic","Major","Natural Minor","Harmonic Minor","Melodic Minor","Dorian","Phrygian","Lydian","Mixolydian","Locrian","Major Pentatonic","Minor Pentatonic","Blues"},1);
- for(auto* box:{&keyBox,&scaleBox}) { box->setTooltip("Select the musical key or scale used by pitch correction"); box->setColour(juce::ComboBox::backgroundColourId,panel2);box->setColour(juce::ComboBox::textColourId,text);box->setColour(juce::ComboBox::outlineColourId,line);box->setColour(juce::ComboBox::arrowColourId,accent);addAndMakeVisible(*box); }
+ for(auto* box:{&keyBox,&scaleBox}) { box->setLookAndFeel(&customLookAndFeel); box->setTooltip("Select the musical key or scale used by pitch correction"); box->setColour(juce::ComboBox::backgroundColourId,panel2);box->setColour(juce::ComboBox::textColourId,text);box->setColour(juce::ComboBox::outlineColourId,line);box->setColour(juce::ComboBox::arrowColourId,accent);addAndMakeVisible(*box); }
  comboAttachments[0]=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(processor.state,"key",keyBox);comboAttachments[1]=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(processor.state,"scale",scaleBox);
  juce::Slider* tuneSliders[]={&speed,&humanize,&detune};const char* tuneIds[]={"speed","humanize","detune"};const char* tuneNames[]={"RETUNE SPEED","HUMANIZE","DETUNE / CENTS"};
- for(int i=0;i<3;++i){tuneSliders[i]->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);tuneSliders[i]->setTextBoxStyle(juce::Slider::TextBoxBelow,false,74,20);tuneSliders[i]->setColour(juce::Slider::rotarySliderFillColourId,accent);tuneSliders[i]->setColour(juce::Slider::rotarySliderOutlineColourId,line);tuneSliders[i]->setColour(juce::Slider::thumbColourId,text);tuneSliders[i]->setColour(juce::Slider::textBoxTextColourId,text);tuneSliders[i]->setColour(juce::Slider::textBoxBackgroundColourId,panel2);addAndMakeVisible(*tuneSliders[i]);tuneLabels[i].setText(tuneNames[i],juce::dontSendNotification);tuneLabels[i].setJustificationType(juce::Justification::centred);tuneLabels[i].setColour(juce::Label::textColourId,muted);addAndMakeVisible(tuneLabels[i]);tuneAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state,tuneIds[i],*tuneSliders[i]);}
+ for(int i=0;i<3;++i){tuneSliders[i]->setLookAndFeel(&customLookAndFeel);tuneSliders[i]->setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);tuneSliders[i]->setTextBoxStyle(juce::Slider::TextBoxBelow,false,74,20);tuneSliders[i]->setColour(juce::Slider::rotarySliderFillColourId,accent);tuneSliders[i]->setColour(juce::Slider::rotarySliderOutlineColourId,line);tuneSliders[i]->setColour(juce::Slider::thumbColourId,text);tuneSliders[i]->setColour(juce::Slider::textBoxTextColourId,text);tuneSliders[i]->setColour(juce::Slider::textBoxBackgroundColourId,panel2);addAndMakeVisible(*tuneSliders[i]);tuneLabels[i].setText(tuneNames[i],juce::dontSendNotification);tuneLabels[i].setJustificationType(juce::Justification::centred);tuneLabels[i].setColour(juce::Label::textColourId,muted);addAndMakeVisible(tuneLabels[i]);tuneAttachments[i]=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(processor.state,tuneIds[i],*tuneSliders[i]);}
  selectTab(1); resized(); startTimerHz(15);
 }
 
