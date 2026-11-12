@@ -116,9 +116,19 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int maximumExpectedSamplesPer
  reverb.prepare(spec); reverb.reset();
  delayBuffer.setSize(2,(int)(sr*2.0)+maximumExpectedSamplesPerBlock+1); delayBuffer.clear(); delayWasEnabled=false;
  dryBuffer.setSize(2,juce::jmax(maximumExpectedSamplesPerBlock,65536)); dryBuffer.clear();
- pitchShiftBuffer.setSize(2,(int)(sr*0.065)+maximumExpectedSamplesPerBlock+1); pitchShiftBuffer.clear();
- pitchRatioBuffer.setSize(1,juce::jmax(maximumExpectedSamplesPerBlock,65536)); pitchRatioBuffer.clear(); delayWritePosition=0; pitchWritePosition=0; pitchShiftSamplesWritten=0; pitchShiftWarmupMix=0.0f;
- pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchHistorySamples=0; pitchSamplesSinceAnalysis=0; pitchAnalysisHop=juce::jlimit(256,2048,(int)std::lround(sr*0.010)); smoothedPitchRatio=1.0f; targetPitchRatio=1.0f; smoothedDetuneCents=0.0f; pitchPhase=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; pitchUnvoicedFrames=0; trackedScaleNote=-1;
+ pitchOutputBuffer.setSize(2,juce::jmax(maximumExpectedSamplesPerBlock,65536)); pitchOutputBuffer.clear();
+ pitchRatioBuffer.setSize(1,juce::jmax(maximumExpectedSamplesPerBlock,65536)); pitchRatioBuffer.clear(); delayWritePosition=0;
+ const int shifterChannels=juce::jlimit(1,2,getTotalNumInputChannels());
+ const int stretchBlock=juce::jmax(1024,(int)std::lround(sr*0.045));
+ const int stretchInterval=juce::jmax(256,(int)std::lround(sr*0.010));
+ vocalPitchShifter.configure(shifterChannels,stretchBlock,stretchInterval,true);
+ vocalPitchShifter.setTransposeFactor(1.0f);
+ vocalPitchShifter.setFormantFactor(1.0f,true);
+ vocalPitchShifter.setFormantBase(0.0f);
+ reportedLatencySamples=vocalPitchShifter.inputLatency()+vocalPitchShifter.outputLatency();
+ setLatencySamples(reportedLatencySamples);
+ dryLatencyBuffer.setSize(2,reportedLatencySamples+maximumExpectedSamplesPerBlock+1);dryLatencyBuffer.clear();dryLatencyWritePosition=0;
+ pitchHistory.fill(0.0f); pitchHistoryWrite=0; pitchHistorySamples=0; pitchSamplesSinceAnalysis=0; pitchAnalysisHop=juce::jlimit(256,2048,(int)std::lround(sr*0.010)); smoothedPitchRatio=1.0f; targetPitchRatio=1.0f; smoothedDetuneCents=0.0f; trackedPitchMidi=-1.0f; pendingPitchMidi=-1.0f; pendingPitchFrames=0; pitchUnvoicedFrames=0; trackedScaleNote=-1;
  lastLowGain=lastMidGain=lastHighGain=999.0f;lastLowFreq=lastMidFreq=lastHighFreq=-1.0f;lastMidQ=-1.0f;
  for(int band=0;band<5;++band){lastExtraGain[band]=999.0f;lastExtraFreq[band]=-1.0f;lastExtraQ[band]=-1.0f;}
  detectedMidiNote.store(-1.0f); correctionCents.store(0.0f); inputPeak.store(0.0f); outputPeak.store(0.0f);
@@ -278,50 +288,6 @@ int ZMBFRMAudioProcessor::getScaleNote(int midiNote,int key,int scale) const noe
  return best;
 }
 
-float ZMBFRMAudioProcessor::pitchShiftSample(int channel,float input,float ratio) noexcept
-{
- // Two continuously overlapping delay heads. A Hann crossfade avoids the
- // level ripple of a triangular fade, while cubic interpolation reduces
- // high-frequency aliasing and the grainy edge of linear delay reads.
- const int cap=pitchShiftBuffer.getNumSamples();
- auto* ring=pitchShiftBuffer.getWritePointer(channel);
- ring[pitchWritePosition]=input;
- const float depth=juce::jmin((float)(cap-128),(float)sampleRateHz*0.040f);
- const float phaseA=pitchPhase;
- const float phaseB=phaseA<0.5f ? phaseA+0.5f : phaseA-0.5f;
-
- auto readTap=[&](float phase) noexcept
- {
-  const float delay=64.0f+phase*depth;
-  float pos=(float)pitchWritePosition-delay;
-  while(pos<0.0f) pos+=(float)cap;
-  while(pos>=(float)cap) pos-=(float)cap;
-
-  const int i1=(int)pos;
-  const int i0=(i1+cap-1)%cap;
-  const int i2=(i1+1)%cap;
-  const int i3=(i1+2)%cap;
-  const float t=pos-(float)i1;
-  const float y0=ring[i0], y1=ring[i1], y2=ring[i2], y3=ring[i3];
-
-  // Catmull-Rom cubic interpolation; bounded to avoid overshoot on sharp
-  // vocal transients while retaining a smoother slope than linear reads.
-  const float a0=-0.5f*y0+1.5f*y1-1.5f*y2+0.5f*y3;
-  const float a1=y0-2.5f*y1+2.0f*y2-0.5f*y3;
-  const float a2=-0.5f*y0+0.5f*y2;
-  const float cubic=((a0*t+a1)*t+a2)*t+y1;
-  const float linear=y1+(y2-y1)*t;
-  return juce::jlimit(juce::jmin(y1,y2),juce::jmax(y1,y2),cubic*0.85f+linear*0.15f);
- };
-
- const float a=readTap(phaseA);
- const float b=readTap(phaseB);
- const float wa=0.5f-0.5f*std::cos(juce::MathConstants<float>::twoPi*phaseA);
- const float wb=1.0f-wa;
- juce::ignoreUnused(ratio); // Phase increment is applied once per sample in processBlock().
- return a*wa+b*wb;
-}
-
 void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBuffer&)
 {
  juce::ScopedNoDenormals noDenormals;
@@ -329,7 +295,8 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
  // A prepared scratch buffer avoids allocating memory in the real-time audio callback.
  // JUCE hosts normally respect the prepared block size; the oversized reserve covers common
  // offline/render blocks without resizing in processBlock.
- if (n > dryBuffer.getNumSamples() || n > pitchRatioBuffer.getNumSamples())
+ if (n <= 0) return;
+ if (n > dryBuffer.getNumSamples() || n > pitchRatioBuffer.getNumSamples() || n > pitchOutputBuffer.getNumSamples() || n > dryLatencyBuffer.getNumSamples())
  {
   // Never resize a scratch buffer on the audio thread. For unusually large offline blocks,
   // safely pass audio through rather than risk an out-of-bounds read.
@@ -530,37 +497,33 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
   smoothedPitchRatio+=alpha*(targetPitchRatio-smoothedPitchRatio);
   pitchRatioBuffer.getWritePointer(0)[i]=smoothedPitchRatio;
  }
+ // Run a dedicated phase-vocoder pitch/time engine. It preserves the input
+ // duration while changing pitch and compensates formants for vocal material.
+ // Process continuously at unity when bypassed so its internal history stays warm.
+ const float blockTranspose=juce::jlimit(0.5f,2.0f,pitchRatioBuffer.getReadPointer(0)[n-1]);
+ vocalPitchShifter.setTransposeFactor(tune?blockTranspose:1.0f);
+ vocalPitchShifter.setFormantFactor(1.0f,true);
+ const float* stretchInputs[2]={nullptr,nullptr};
+ float* stretchOutputs[2]={nullptr,nullptr};
+ for(int ch=0;ch<chans;++ch){
+  stretchInputs[ch]=dryBuffer.getReadPointer(ch);
+  stretchOutputs[ch]=pitchOutputBuffer.getWritePointer(ch);
+ }
+ vocalPitchShifter.process(stretchInputs,n,stretchOutputs,n);
  if(tune){
-  // The longest read tap needs a full grain of history. Until that history
-  // exists, pass the dry signal; then fade the shifter in over 5 ms.
-  const float grainDepth=juce::jmin((float)(pitchShiftBuffer.getNumSamples()-128),(float)sampleRateHz*0.040f);
-  const int warmupSamples=(int)std::ceil(64.0f+grainDepth);
-  const float warmupAlpha=1.0f-std::exp(-1.0f/((float)sampleRateHz*0.005f));
+  for(int ch=0;ch<chans;++ch)b.copyFrom(ch,0,pitchOutputBuffer.getReadPointer(ch),n);
+ }else{
+  // Keep the bypass path sample-aligned with the engine's reported latency.
+  const int cap=dryLatencyBuffer.getNumSamples();
+  const int delay=juce::jlimit(0,cap-1,reportedLatencySamples);
   for(int i=0;i<n;++i){
-   const float ratio=juce::jlimit(0.5f,2.0f,pitchRatioBuffer.getReadPointer(0)[i]);
-   const float targetMix=pitchShiftSamplesWritten>=warmupSamples?1.0f:0.0f;
-   pitchShiftWarmupMix+=warmupAlpha*(targetMix-pitchShiftWarmupMix);
    for(int ch=0;ch<chans;++ch){
-    const float dry=dryBuffer.getReadPointer(ch)[i];
-    const float shifted=pitchShiftSample(ch,dry,ratio);
-    b.getWritePointer(ch)[i]=dry+(shifted-dry)*pitchShiftWarmupMix;
+    auto* ring=dryLatencyBuffer.getWritePointer(ch);
+    ring[dryLatencyWritePosition]=dryBuffer.getReadPointer(ch)[i];
+    const int read=(dryLatencyWritePosition-delay+cap)%cap;
+    b.getWritePointer(ch)[i]=ring[read];
    }
-   const float phaseDelta=(1.0f-ratio)/juce::jmax(1.0f,grainDepth);
-   pitchPhase+=phaseDelta;
-   if(pitchPhase>=1.0f)pitchPhase-=1.0f;
-   if(pitchPhase<0.0f)pitchPhase+=1.0f;
-   pitchWritePosition=(pitchWritePosition+1)%pitchShiftBuffer.getNumSamples();
-   pitchShiftSamplesWritten=juce::jmin(warmupSamples,pitchShiftSamplesWritten+1);
-  }
- } else {
-  // Keep the circular buffer primed while tuning is bypassed, so enabling it
-  // later does not start with an empty delay line.
-  pitchShiftWarmupMix=0.0f;
-  const int warmupSamples=(int)std::ceil(64.0f+juce::jmin((float)(pitchShiftBuffer.getNumSamples()-128),(float)sampleRateHz*0.040f));
-  for(int i=0;i<n;++i){
-   for(int ch=0;ch<chans;++ch)pitchShiftBuffer.getWritePointer(ch)[pitchWritePosition]=dryBuffer.getReadPointer(ch)[i];
-   pitchWritePosition=(pitchWritePosition+1)%pitchShiftBuffer.getNumSamples();
-   pitchShiftSamplesWritten=juce::jmin(warmupSamples,pitchShiftSamplesWritten+1);
+   dryLatencyWritePosition=(dryLatencyWritePosition+1)%cap;
   }
  }
  if(v("eqOn")>.5f){
