@@ -114,7 +114,7 @@ void ZMBFRMAudioProcessor::prepareToPlay(double sr,int blockSize)
  compressor.prepare(spec); compressor.setAttack(8.f); compressor.setRelease(100.f);
  chorus.prepare(spec); chorus.setRate(.25f); chorus.setDepth(.2f);
  reverb.prepare(spec); reverb.reset();
- delayBuffer.setSize(2,(int)(sr*2.0)+blockSize+1); delayBuffer.clear();
+ delayBuffer.setSize(2,(int)(sr*2.0)+blockSize+1); delayBuffer.clear(); delayWasEnabled=false;
  dryBuffer.setSize(2,juce::jmax(blockSize,65536)); dryBuffer.clear();
  pitchShiftBuffer.setSize(2,(int)(sr*0.065)+blockSize+1); pitchShiftBuffer.clear();
  pitchRatioBuffer.setSize(1,juce::jmax(blockSize,65536)); pitchRatioBuffer.clear(); delayWritePosition=0; pitchWritePosition=0; pitchShiftSamplesWritten=0; pitchShiftWarmupMix=0.0f;
@@ -352,6 +352,17 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
  const float meterDecay=std::exp(-(float)n/((float)sampleRateHz*0.35f));
  inputPeak.store(juce::jmax(blockInputPeak,inputPeak.load(std::memory_order_relaxed)*meterDecay),std::memory_order_relaxed);
  auto v=[this](const char* id){return state.getRawParameterValue(id)->load();};
+ const bool delayEnabled=v("delayOn")>.5f;
+ // Discard stale repeats when the delay is bypassed. Without this reset,
+ // re-enabling the module could replay audio from before the bypass interval.
+ if(!delayEnabled && delayWasEnabled){
+  delayBuffer.clear();
+  delayWritePosition=0;
+  delayTimeSmoother.setCurrentAndTargetValue(v("delay"));
+  delayFeedbackSmoother.setCurrentAndTargetValue(v("delayFeedback"));
+  delayMixSmoother.setCurrentAndTargetValue(v("delayMix"));
+ }
+ delayWasEnabled=delayEnabled;
  const bool tune=v("tuneOn")>.5f;
  const int key=(int)v("key"), scale=(int)v("scale");
  const float speed=v("speed"), human=v("humanize"), detune=v("detune");
@@ -501,11 +512,13 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
      // the actual release without 10 ms control-rate stair-steps.
      targetPitchRatio=1.0f;
     }
-    const int traceWrite=pitchTraceWrite.load(std::memory_order_relaxed);
-    pitchTrace[(size_t)traceWrite].store(detectedMidiNote.load(std::memory_order_relaxed),std::memory_order_relaxed);
-    pitchTraceWrite.store((traceWrite+1)%pitchTraceSize,std::memory_order_relaxed);
-    pitchTraceCount.store(juce::jmin(pitchTraceSize,pitchTraceCount.load(std::memory_order_relaxed)+1),std::memory_order_relaxed);
    }
+   // Record every analysis frame, including voiced notes. Previously this
+   // write lived only in the unvoiced branch, leaving the pitch graph empty.
+   const int traceWrite=pitchTraceWrite.load(std::memory_order_relaxed);
+   pitchTrace[(size_t)traceWrite].store(detectedMidiNote.load(std::memory_order_relaxed),std::memory_order_relaxed);
+   pitchTraceWrite.store((traceWrite+1)%pitchTraceSize,std::memory_order_relaxed);
+   pitchTraceCount.store(juce::jmin(pitchTraceSize,pitchTraceCount.load(std::memory_order_relaxed)+1),std::memory_order_relaxed);
   }
   // Preserve the ratio at the exact sample where it became valid. Applying
   // only the final block ratio would retroactively retune earlier samples
@@ -607,7 +620,7 @@ void ZMBFRMAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBu
  }
  if(v("chorusOn")>.5f){chorus.setRate(v("chorusRate"));chorus.setDepth(v("chorus"));chorus.setMix(v("chorusMix"));chorus.setFeedback(v("chorusFeedback"));chorus.setCentreDelay(v("chorusDelay"));juce::dsp::AudioBlock<float> block(b);chorus.process(juce::dsp::ProcessContextReplacing<float>(block));}
  if(v("reverbOn")>.5f){juce::dsp::Reverb::Parameters rp;rp.roomSize=.2f+v("reverb")*.7f;rp.damping=v("reverbDamping");rp.wetLevel=v("reverbMix")*.45f;rp.dryLevel=1.0f;rp.width=v("reverbWidth");reverb.setParameters(rp);juce::dsp::AudioBlock<float> block(b);reverb.process(juce::dsp::ProcessContextReplacing<float>(block));}
- if(v("delayOn")>.5f){
+ if(delayEnabled){
   const int cap=delayBuffer.getNumSamples();
   delayTimeSmoother.setTargetValue(v("delay")); delayFeedbackSmoother.setTargetValue(v("delayFeedback")); delayMixSmoother.setTargetValue(v("delayMix"));
   for(int i=0;i<n;++i){
