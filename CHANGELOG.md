@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.1 — Reliability and UI Fixes
+- Fixed the tuner history writer so voiced pitch frames are recorded and the live pitch trace actually renders.
+- Reset delay history when the delay is bypassed to prevent stale repeats from returning when re-enabled.
+- Report reverb tail only when the reverb wet mix is audible.
+- Recalculate editor layout whenever tabs change and clarify ON/BYPASSED module states.
+- Removed project-owned compiler warnings in the editor and processor setup.
+
+
 ## 2.0.0 — Vocal Suite Completion Pass
 - Exposed Gain, Frequency, and Q controls for all five parametric EQ bands.
 - Added complete Chorus mix/feedback/centre-delay controls and independent Reverb mix/width controls.
